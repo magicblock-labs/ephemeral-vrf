@@ -1,0 +1,16 @@
+[package]
+name = "ephemeral_vrf"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "ephemeral_vrf"
+path = "main.rs"
+
+[dependencies]
+solana-curve25519.workspace = true
+curve25519-dalek.workspace = true
+rand.workspace = true
+solana-sdk.workspace = true
+sha2.workspace = true
+hkdf.workspace = true
