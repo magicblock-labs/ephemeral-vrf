@@ -1,5 +1,5 @@
 [package]
-name = "ephemeral_vrf"
+name = "ephemeral-vrf-oracle"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,9 +8,7 @@ name = "ephemeral_vrf"
 path = "main.rs"
 
 [dependencies]
-solana-curve25519.workspace = true
 curve25519-dalek.workspace = true
-rand.workspace = true
 solana-sdk.workspace = true
 sha2.workspace = true
 hkdf.workspace = true

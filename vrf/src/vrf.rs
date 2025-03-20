@@ -3,7 +3,6 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use hkdf::Hkdf;
 use sha2::Sha512;
-use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 
@@ -11,26 +10,6 @@ use solana_sdk::signer::Signer;
 const VRF_PREFIX_HASH_TO_POINT: &[u8] = b"VRF-Ephem-HashToPoint";
 const VRF_PREFIX_NONCE: &[u8] = b"VRF-Ephem-Nonce";
 const VRF_PREFIX_CHALLENGE: &[u8] = b"VRF-Ephem-Challenge";
-
-fn main() {
-    let (sk, pk) = generate_vrf_keypair();
-    let bs58_pk = Pubkey::new_from_array(pk.compress().to_bytes());
-    print!("Generated PK: {:?}", bs58_pk);
-
-    let blockhash = b"blockhash";
-    let seed = b"test-seed";
-    let input: Vec<u8> = blockhash.iter().chain(seed.iter()).cloned().collect();
-    let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
-        compute_vrf(sk, &input);
-
-    let is_valid = verify_vrf(
-        pk,
-        &input,
-        output,
-        (commitment_base_compressed, commitment_hash_compressed, s),
-    );
-    print!("\nVRF proof is valid: {:?}", is_valid);
-}
 
 // Key Generation (done once by the oracle)
 pub fn generate_vrf_keypair() -> (Scalar, RistrettoPoint) {

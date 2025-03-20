@@ -1,5 +1,7 @@
-use steel::*;
+use solana_program::program::invoke;
 use solana_program::rent::Rent;
+use solana_program::system_instruction;
+use steel::*;
 
 /// Creates a new pda
 #[inline(always)]
@@ -74,5 +76,23 @@ pub fn create_pda<'a, 'info>(
         )?;
     }
 
+    Ok(())
+}
+
+/// Resize PDA
+pub fn resize_pda<'a, 'info>(
+    payer: &'a AccountInfo<'info>,
+    pda: &'a AccountInfo<'info>,
+    system_program: &'a AccountInfo<'info>,
+    new_size: usize,
+) -> Result<(), ProgramError> {
+    let new_minimum_balance = Rent::default().minimum_balance(new_size);
+    let lamports_diff = new_minimum_balance.saturating_sub(pda.lamports());
+    invoke(
+        &system_instruction::transfer(payer.key, pda.key, lamports_diff),
+        &[payer.clone(), pda.clone(), system_program.clone()],
+    )?;
+
+    pda.realloc(new_size, false)?;
     Ok(())
 }

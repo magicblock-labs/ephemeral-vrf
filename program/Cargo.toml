@@ -13,16 +13,20 @@ keywords.workspace = true
 [lib]
 crate-type = ["cdylib", "lib"]
 
+[features]
+default = []
+no-entrypoint = []
+test-sbf = ["ephemeral-vrf-api/unit_test_config"]
+
 [dependencies]
-ephemeral-vrf-api.workspace = true
+ephemeral-vrf-api = { workspace = true, features = [] }
 solana-curve25519.workspace = true
+curve25519-dalek.workspace = true
 solana-program.workspace = true
 steel.workspace = true
-borsh.workspace = true
 
 [dev-dependencies]
-base64 = { workspace = true }
-rand = { workspace = true }
+ephemeral-vrf = { workspace = true}
 solana-program-test = { workspace = true }
 solana-sdk = { workspace = true }
 tokio = { workspace = true, features = ["full"] }

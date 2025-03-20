@@ -9,7 +9,7 @@
 - [`Instruction`](api/src/instruction.rs) – Declared instructions.
 
 ## Instructions
-- [`Add`](program/src/add.rs) – Add ...
+- [`Add`](program/src/add_oracle) – Add ...
 - [`Initialize`](program/src/initialize.rs) – Initialize ...
 
 ## State
@@ -24,5 +24,5 @@ steel build
 
 Run unit and integration tests:
 ```sh
-steel test
+cargo test-sbf --features test-sbf
 ```

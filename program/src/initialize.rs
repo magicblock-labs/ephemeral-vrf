@@ -2,7 +2,6 @@ use ephemeral_vrf_api::prelude::*;
 use steel::*;
 
 pub fn process_initialize(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
-
     // Load accounts.
     let [signer_info, oracles_info, system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);

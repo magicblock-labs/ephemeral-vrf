@@ -1,26 +1,30 @@
-use steel::*;
-use borsh::{BorshDeserialize, BorshSerialize};
-use crate::{impl_to_bytes_with_discriminator_borsh, impl_try_from_bytes_with_discriminator_borsh};
 use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator};
+use crate::{impl_to_bytes_with_discriminator_borsh, impl_try_from_bytes_with_discriminator_borsh};
+use borsh::{BorshDeserialize, BorshSerialize};
+use steel::*;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct Oracles {
-    pub items: Vec<QueueItem>,
+    pub oracles: Vec<Oracle>,
 }
 
-// Each queue item. Customize fields as you need.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
-pub struct QueueItem {
-    pub public_key: Pubkey,
-    pub seed: [u8; 32],
-    pub blockhash: [u8; 32],
-    pub callback_discriminator: [u8; 8],
-    pub callback_accounts_meta: Vec<Pubkey>,
+pub struct Oracle {
+    pub identity: Pubkey,
+    pub oracle_publickey: Pubkey,
+    pub registration_slot: u64,
 }
 
 impl AccountWithDiscriminator for Oracles {
     fn discriminator() -> AccountDiscriminator {
         AccountDiscriminator::Oracles
+    }
+}
+
+impl Oracles {
+    pub fn size_with_discriminator(&self) -> usize {
+        let item_size = 32 + 32 + 8;
+        8 + 4 + (item_size * self.oracles.len())
     }
 }
 

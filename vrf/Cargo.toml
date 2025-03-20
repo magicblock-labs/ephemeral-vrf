@@ -1,6 +1,6 @@
 [package]
-name = "ephemeral-vrf-api"
-description = "API for interacting with the EphemeralVrf program"
+name = "ephemeral-vrf"
+description = "Core Ephemeral Vrf functionality"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,9 +16,7 @@ unit_test_config = []
 
 
 [dependencies]
-bytemuck.workspace = true
-num_enum.workspace = true
-solana-program.workspace = true
-steel.workspace = true
-solana-curve25519.workspace = true
-borsh.workspace = true
+curve25519-dalek.workspace = true
+solana-sdk.workspace = true
+sha2.workspace = true
+hkdf.workspace = true
