@@ -39,7 +39,11 @@ pub mod use_randomness {
         Ok(())
     }
 
-    pub fn consume_randomness(_ctx: Context<ConsumeRandomnessCtx>, randomness: [u8; 32]) -> Result<()> {
+    pub fn consume_randomness(ctx: Context<ConsumeRandomnessCtx>, randomness: [u8; 32]) -> Result<()> {
+        // If the PDA identity is a signer, this means the VRF program is the caller
+        msg!("VRF identity: {:?}", ctx.accounts.vrf_program_identity.key());
+        msg!("VRF identity is signer: {:?}", ctx.accounts.vrf_program_identity.is_signer);
+        // We can safely consume the randomness
         msg!(
             "Consuming random number: {:?}",
             random_u32(&randomness)
@@ -63,7 +67,10 @@ pub struct RequestRandomnessCtx<'info> {
 }
 
 #[derive(Accounts)]
-pub struct ConsumeRandomnessCtx {}
+pub struct ConsumeRandomnessCtx<'info> {
+    #[account(address = VRF_PROGRAM_IDENTITY)]
+    pub vrf_program_identity: Signer<'info>,
+}
 
 /// SDK methods
 pub fn create_request_randomness_ix(
@@ -112,6 +119,7 @@ impl RequestRandomness {
 
 pub const DEFAULT_QUEUE: Pubkey =  pubkey!("4tFFjWnz1qZDJEskJXjxdMzdv71v16ukAPiRqiAbXJ3L");
 pub const VRF_PROGRAM_ID: Pubkey = pubkey!("VrffXU38S8MzqTtTYQG3M8GNwheKH8n77HVEZUdakH8");
+pub const VRF_PROGRAM_IDENTITY: Pubkey = pubkey!("AwF6egvgtC2RdkfUEcCCtjHP2iWhCzFBMi1a6bjv9Hkp");
 
 pub struct VrfProgram;
 

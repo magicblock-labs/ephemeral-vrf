@@ -109,6 +109,7 @@ pub fn provide_randomness(
         program_id: crate::ID,
         accounts: vec![
             AccountMeta::new(oracle_identity, true),
+            AccountMeta::new_readonly(program_identity_pda().0, false),
             AccountMeta::new(oracle_data_pda(&oracle_identity).0, false),
             AccountMeta::new(oracle_queue, false),
             AccountMeta::new_readonly(callback_program_id, false),

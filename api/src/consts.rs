@@ -8,8 +8,8 @@ pub const ORACLES: &[u8] = b"oracles";
 /// seed of the oracle data account PDA.
 pub const ORACLE_DATA: &[u8] = b"oracle";
 
-/// Seed of the counter account PDA.
-pub const COUNTER: &[u8] = b"counter";
+/// Seed of the identity account PDA.
+pub const IDENTITY: &[u8] = b"identity";
 
 /// Seed of the queue account PDA.
 pub const QUEUE: &[u8] = b"queue";

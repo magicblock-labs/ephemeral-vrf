@@ -10,6 +10,8 @@ use steel::*;
 /// Accounts:
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
+/// 1. `[]` program_identity_info - Used to allow the callback program
+/// to verify the identity of the oracle program
 /// 1. `[]` oracle_data_info - Oracle data account associated with the signer
 /// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
 /// 3. `[]` callback_program_info - Program to call with the randomness
@@ -33,19 +35,19 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Load accounts
     let (
-        [signer_info, oracle_data_info, oracle_queue_info, callback_program_info, system_program_info],
+        [oracle_info, program_identity_info, oracle_data_info, oracle_queue_info, callback_program_info, system_program_info],
         remaining_accounts,
-    ) = accounts.split_at(5)
+    ) = accounts.split_at(6)
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
     // Verify signer
-    signer_info.is_signer()?;
+    oracle_info.is_signer()?;
 
     // Load oracle data
     oracle_data_info.has_seeds(
-        &[ORACLE_DATA, signer_info.key.to_bytes().as_ref()],
+        &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
         &ephemeral_vrf_api::ID,
     )?;
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
@@ -82,7 +84,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Resize and serialize oracle queue
     resize_pda(
-        signer_info,
+        oracle_info,
         oracle_queue_info,
         system_program_info,
         oracle_queue_bytes.len(),
@@ -94,18 +96,23 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     if item
         .callback_accounts_meta
         .iter()
-        .any(|acc| acc.pubkey == *signer_info.key)
+        .any(|acc| acc.pubkey == *oracle_info.key)
     {
         return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
     }
 
     // Invoke callback with randomness
     callback_program_info.has_address(&item.callback_program_id)?;
-    let accounts_metas: Vec<_> = item.callback_accounts_meta.iter().map(|acc| AccountMeta {
+    let mut accounts_metas  = vec![AccountMeta{
+        pubkey: *program_identity_info.key,
+        is_signer: true,
+        is_writable: false,
+    }];
+    accounts_metas.extend(item.callback_accounts_meta.iter().map(|acc| AccountMeta {
         pubkey: acc.pubkey,
         is_signer: acc.is_signer,
         is_writable: acc.is_writable,
-    }).collect();
+    }));
     let mut callback_data = Vec::with_capacity(
         item.callback_discriminator.len() + output.0.len() + item.callback_args.len()
     );
@@ -118,12 +125,15 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         accounts: accounts_metas,
         data: callback_data,
     };
-    let mut all_accounts = vec![callback_program_info.clone()];
+    let mut all_accounts  = vec![callback_program_info.clone()];
+    all_accounts.extend(vec![program_identity_info.clone()]);
     all_accounts.extend_from_slice(remaining_accounts);
 
-    solana_program::program::invoke_signed(&ix, &all_accounts, &[])?;
-
-    //TODO: Pass also a signer PDA that can be used to enforce CPI from the receiver program
+    // Invoke the callback with randomness and signed identity
+    let id = program_identity_pda();
+    program_identity_info.has_address(&id.0)?;
+    let pda_signer_seeds: &[&[&[u8]]] = &[&[IDENTITY, &[id.1]]];
+    solana_program::program::invoke_signed(&ix, &all_accounts, pda_signer_seeds)?;
 
     Ok(())
 }

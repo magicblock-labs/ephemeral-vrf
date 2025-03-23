@@ -39,6 +39,10 @@ pub fn oracle_data_pda(identity: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[ORACLE_DATA, identity.to_bytes().as_slice()], &crate::id())
 }
 
+pub fn program_identity_pda() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[IDENTITY], &crate::id())
+}
+
 /// Fetch PDA of the queue account.
 pub fn oracle_queue_pda(identity: &Pubkey, index: u8) -> (Pubkey, u8) {
     Pubkey::find_program_address(
