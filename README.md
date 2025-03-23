@@ -1,6 +1,7 @@
 # EphemeralVrf
 
-**EphemeralVrf** is a Verifiable Random Function (VRF) implementation for the Solana blockchain that provides secure, verifiable randomness for decentralized applications. It uses a network of oracles to generate and verify random values on-chain.
+**EphemeralVrf** is a Verifiable Random Function (VRF) implementation for Solana that provides secure, verifiable randomness for decentralized applications. 
+It uses a network of oracles to generate and verify random values on-chain.
 
 ## Overview     
 
