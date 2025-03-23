@@ -1,6 +1,6 @@
 use crate::state::AccountDiscriminator;
 use solana_curve25519::ristretto::PodRistrettoPoint;
-use steel::{account, Pod, Zeroable};
+use steel::{account, trace, Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]

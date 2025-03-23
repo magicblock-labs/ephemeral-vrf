@@ -2,6 +2,32 @@ use ephemeral_vrf_api::prelude::*;
 use solana_program::hash::hashv;
 use steel::*;
 
+/// Process a request for randomness
+///
+/// Accounts:
+///
+/// 0. `[signer]` signer - The account requesting randomness and paying for the transaction
+/// 1. `[]` oracle_queue_info - The oracle queue account that will store the randomness request
+/// 2. `[]` system_program_info - The system program
+/// 3. `[]` slothashes_account_info - The SlotHashes sysvar account
+///
+/// Requirements:
+///
+/// - The signer must be a valid signer
+/// - The oracle queue must be properly initialized
+/// - The request is stored in the oracle queue with a combined hash derived from:
+///   - caller_seed
+///   - current slot
+///   - slot hash
+///   - callback discriminator
+///   - callback program ID
+///
+/// 1. Verify the signer
+/// 2. Get the current slot and slot hash
+/// 3. Create a combined hash from inputs to uniquely identify this request
+/// 4. Insert the request into the oracle queue
+/// 5. Resize the oracle queue PDA if needed
+/// 6. Update the oracle queue data
 pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse args
     let args = RequestRandomness::try_from_bytes(data)?;

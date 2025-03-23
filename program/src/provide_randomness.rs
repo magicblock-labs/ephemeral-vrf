@@ -5,6 +5,28 @@ use solana_curve25519::scalar::PodScalar;
 use solana_program::hash::hash;
 use steel::*;
 
+/// Process the provide randomness instruction which verifies VRF proof and executes callback
+///
+/// Accounts:
+///
+/// 0. `[signer]` signer - The oracle signer providing randomness
+/// 1. `[]` oracle_data_info - Oracle data account associated with the signer
+/// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
+/// 3. `[]` callback_program_info - Program to call with the randomness
+/// 4. `[]` system_program_info - System program for resizing accounts
+/// 5+ `[varies]` remaining_accounts - Accounts needed for the callback
+///
+/// Requirements:
+///
+/// - Signer must be a registered oracle with valid VRF keypair
+/// - VRF proof must be valid for the given input and output
+/// - Request must exist in the oracle queue
+/// - Oracle signer must not be included in callback accounts
+///
+/// 1. Verify the oracle signer and load oracle data
+/// 2. Verify the VRF proof
+/// 3. Remove the request from the queue
+/// 4. Invoke the callback with the randomness
 pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse args
     let args = ProvideRandomness::try_from_bytes(data)?;
@@ -44,59 +66,29 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         return Err(EphemeralVrfError::InvalidProof.into());
     }
 
-    let mut oracle_queue_bytes = vec![];
-    let item: QueueItem;
     // Load and remove oracle item from the queue
-    {
-        let mut oracle_queue = QueueAccount::try_from_bytes_with_discriminator(
-            &mut oracle_queue_info.try_borrow_data()?,
-        )?;
-        item = oracle_queue
-            .items
-            .get(&args.input)
-            .ok_or(EphemeralVrfError::RandomnessRequestNotFound)?
-            .clone();
-        oracle_queue.items.remove(&args.input);
+    let mut oracle_queue = QueueAccount::try_from_bytes_with_discriminator(
+        &mut oracle_queue_info.try_borrow_data()?,
+    )?;
+    let item = oracle_queue
+        .items
+        .get(&args.input)
+        .ok_or(EphemeralVrfError::RandomnessRequestNotFound)?
+        .clone();
+    oracle_queue.items.remove(&args.input);
 
-        oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
-    }
+    let mut oracle_queue_bytes = vec![];
+    oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+
     // Resize and serialize oracle queue
-    {
-        resize_pda(
-            signer_info,
-            oracle_queue_info,
-            system_program_info,
-            oracle_queue_bytes.len(),
-        )?;
-        let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-        oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
-    }
-
-    // Invoke callback with randomness
-    callback_program_info.has_address(&item.callback_program_id)?;
-    let accounts_metas = item
-        .callback_accounts_meta
-        .iter()
-        .map(|acc| AccountMeta {
-            pubkey: acc.pubkey,
-            is_signer: acc.is_signer,
-            is_writable: acc.is_writable,
-        })
-        .collect::<Vec<_>>();
-
-    let ix = Instruction {
-        program_id: item.callback_program_id,
-        accounts: accounts_metas,
-        data: [
-            item.callback_discriminator.to_vec(),
-            output.0.to_vec(),
-            item.callback_args,
-        ]
-        .concat(),
-    };
-
-    let mut all_accounts = vec![callback_program_info.clone()];
-    all_accounts.extend_from_slice(remaining_accounts);
+    resize_pda(
+        signer_info,
+        oracle_queue_info,
+        system_program_info,
+        oracle_queue_bytes.len(),
+    )?;
+    let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
+    oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
 
     // Check that the oracle signer is not in the callback accounts
     if item
@@ -107,11 +99,47 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
     }
 
+    // Invoke callback with randomness
+    callback_program_info.has_address(&item.callback_program_id)?;
+    let accounts_metas: Vec<_> = item.callback_accounts_meta.iter().map(|acc| AccountMeta {
+        pubkey: acc.pubkey,
+        is_signer: acc.is_signer,
+        is_writable: acc.is_writable,
+    }).collect();
+    let mut callback_data = Vec::with_capacity(
+        item.callback_discriminator.len() + output.0.len() + item.callback_args.len()
+    );
+    callback_data.extend_from_slice(&item.callback_discriminator);
+    callback_data.extend_from_slice(&output.0);
+    callback_data.extend_from_slice(&item.callback_args);
+
+    let ix = Instruction {
+        program_id: item.callback_program_id,
+        accounts: accounts_metas,
+        data: callback_data,
+    };
+    let mut all_accounts = vec![callback_program_info.clone()];
+    all_accounts.extend_from_slice(remaining_accounts);
+
     solana_program::program::invoke_signed(&ix, &all_accounts, &[])?;
+
+    //TODO: Pass also a signer PDA that can be used to enforce CPI from the receiver program
 
     Ok(())
 }
 
+/// Verify a VRF proof
+///
+/// Accounts: None
+///
+/// Requirements:
+///
+/// - Proof must be valid for the given public key, input, and output
+///
+/// 1. Recompute the hash point from input
+/// 2. Recompute the challenge scalar
+/// 3. Verify the Schnorr proof for the base point
+/// 4. Verify the Schnorr-like proof for the hash point
 fn verify_vrf(
     pk: &PodRistrettoPoint,
     input: &[u8; 32],
@@ -179,6 +207,14 @@ fn verify_vrf(
 }
 
 /// Hash the input with a prefix, convert the result to a scalar, and multiply it with the base point
+///
+/// Accounts: None
+///
+/// Requirements: None
+///
+/// 1. Hash the input with the VRF prefix
+/// 2. Convert the hash to a scalar
+/// 3. Multiply the scalar with the base point
 fn hash_to_point(input: &[u8]) -> PodRistrettoPoint {
     let hashed_input = hash(
         [VRF_PREFIX_HASH_TO_POINT.to_vec(), input.to_vec()]
@@ -193,6 +229,12 @@ fn hash_to_point(input: &[u8]) -> PodRistrettoPoint {
 }
 
 /// Convert the input to a scalar using the modulus order of the curve
+///
+/// Accounts: None
+///
+/// Requirements: None
+///
+/// 1. Convert the input bytes to a scalar using the curve's modulus
 fn hash_to_scalar(input: &[u8; 32]) -> PodScalar {
-    PodScalar(Scalar::from_bytes_mod_order(input.clone()).to_bytes())
+    PodScalar(Scalar::from_bytes_mod_order(*input).to_bytes())
 }

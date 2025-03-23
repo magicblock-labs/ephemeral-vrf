@@ -1,6 +1,22 @@
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
 
+/// Process the initialization of the EphemeralVrf program
+///
+/// Accounts:
+///
+/// 0; `[signer]` The authority that initializes the program
+/// 1; `[]`       The oracles account (PDA to be created)
+/// 2; `[]`       The system program
+///
+/// Requirements:
+///
+/// - The authority (account 0) must be a signer.
+/// - The oracles account (account 1) must be empty and use the correct seeds ([ORACLES]).
+///
+/// 1. Parse the instruction data and extract arguments (Initialize).
+/// 2. Create the oracles PDA.
+/// 3. Write the default Oracles data to the new PDA.
 pub fn process_initialize(accounts: &[AccountInfo<'_>], _data: &[u8]) -> ProgramResult {
     // Load accounts.
     let [signer_info, oracles_info, system_program] = accounts else {

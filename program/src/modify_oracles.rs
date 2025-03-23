@@ -2,6 +2,31 @@ use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
 
+
+/// Process the modification of oracles (add or remove)
+///
+/// Accounts:
+///
+/// 0. `[signer]` signer - Must be the admin
+/// 1. `[writable]` oracles_info - PDA that stores the list of oracle identities
+/// 2. `[writable]` oracle_data_info - PDA that stores the oracle data
+/// 3. `[]` system_program - System program for account creation/closing
+///
+/// Requirements:
+///
+/// - Signer must be the admin (ADMIN_PUBKEY)
+/// - For adding an oracle (operation = 0):
+///   - Oracle data account is created
+///   - Oracle identity is added to the oracles list
+/// - For removing an oracle (operation = 1):
+///   - Oracle data account is closed
+///   - Oracle identity is removed from the oracles list
+///
+/// 1. Verify the signer is the admin
+/// 2. Validate account PDAs
+/// 3. Add or remove the oracle based on operation
+/// 4. Resize the oracles PDA if needed
+/// 5. Update the oracles list
 pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse args.
     let args = ModifyOracle::try_from_bytes(data)?;

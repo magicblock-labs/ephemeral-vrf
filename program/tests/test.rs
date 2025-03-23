@@ -1,6 +1,6 @@
 mod fixtures;
 
-use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_CALLBACK_DISCRIMINATOR};
+use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_DISCRIMINATOR, TEST_CALLBACK_PROGRAM};
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::PodRistrettoPoint;

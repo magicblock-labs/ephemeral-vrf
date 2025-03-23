@@ -1,7 +1,30 @@
+
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
 
+/// Process the initialization of the Oracle queue
+///
+///
+/// Accounts:
+///
+/// 0; `[signer]` The payer of the transaction fees
+/// 1; `[]`       The Oracle public key
+/// 2; `[]`       The Oracle data account
+/// 3; `[]`       The Oracle queue account (PDA to be created)
+/// 4; `[]`       The System program
+///
+/// Requirements:
+///
+/// - The payer (account 0) must be a signer.
+/// - The Oracle data account (account 2) must have the correct seeds ([ORACLE_DATA, oracle.key]).
+/// - The Oracle queue account (account 3) must be empty and use the correct seeds ([QUEUE, oracle.key, index]).
+/// - The Oracle must have been registered for at least 200 slots.
+///
+/// 1. Parse the instruction data and extract arguments (InitializeOracleQueue).
+/// 2. Confirm the Oracle is authorized (enough time has passed since registration).
+/// 3. Create the Oracle queue PDA.
+/// 4. Write the default QueueAccount data to the new PDA.
 pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse args.
     let args = InitializeOracleQueue::try_from_bytes(data)?;
@@ -31,8 +54,6 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     #[cfg(feature = "test-sbf")]
     let current_slot = 500;
 
-    // Check that the oracle is the approved from at least 200 slots (> 1.5 min).
-    // This is to prevent that an oracle mine a new pubkey to influence the VRF.
     if current_slot - oracle_data.registration_slot < 200 {
         log(format!(
             "Oracle {} not authorized or not yet reached an operational slot",
