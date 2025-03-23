@@ -49,7 +49,7 @@ impl QueueAccount {
         let mut size = 8 + 4;
 
         // For each key-value pair:
-        for (_, item) in &self.items {
+        for item in self.items.values() {
             // 32 bytes for the key
             size += 32;
 

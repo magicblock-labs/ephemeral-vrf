@@ -1,6 +1,5 @@
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-use solana_program::sysvar::slot_hashes;
 use steel::*;
 
 use crate::prelude::*;
@@ -65,33 +64,6 @@ pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> I
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: InitializeOracleQueue { index }.to_bytes(),
-    }
-}
-
-pub fn request_randomness(
-    signer: Pubkey,
-    oracle_queue: Pubkey,
-    callback_program_id: Pubkey,
-    callback_discriminator: Vec<u8>,
-    accounts_metas: Option<Vec<SerializableAccountMeta>>,
-    caller_seed: Option<[u8; 32]>,
-) -> Instruction {
-    Instruction {
-        program_id: crate::ID,
-        accounts: vec![
-            AccountMeta::new(signer, true),
-            AccountMeta::new(oracle_queue, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(slot_hashes::ID, false),
-        ],
-        data: RequestRandomness {
-            caller_seed: caller_seed.unwrap_or(Pubkey::new_unique().to_bytes()),
-            callback_program_id,
-            callback_discriminator,
-            callback_accounts_metas: accounts_metas.unwrap_or(vec![]),
-            callback_args: vec![],
-        }
-        .to_bytes(),
     }
 }
 

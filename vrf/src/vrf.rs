@@ -25,19 +25,12 @@ fn hash_to_point(input: &[u8]) -> RistrettoPoint {
             .concat()
             .as_slice(),
     );
-    &Scalar::from_bytes_mod_order(hashed_input.to_bytes()) * &RISTRETTO_BASEPOINT_POINT
+    Scalar::from_bytes_mod_order(hashed_input.to_bytes()) * RISTRETTO_BASEPOINT_POINT
 }
-
-// fn hash_to_point(input: &[u8; 32]) -> RistrettoPoint {
-//     let mut concatenated = [0u8; 64];
-//     concatenated[..32].copy_from_slice(VRF_PREFIX_HASH_TO_POINT);
-//     concatenated[32..].copy_from_slice(input);
-//     RistrettoPoint::from_uniform_bytes(&concatenated)
-// }
 
 // Hash-to-Scalar using built-in hash_to_scalar function, plus domain separation
 fn hash_to_scalar(input: &[u8; 32]) -> Scalar {
-    Scalar::from_bytes_mod_order(input.clone())
+    Scalar::from_bytes_mod_order(*input)
 }
 
 // VRF computation

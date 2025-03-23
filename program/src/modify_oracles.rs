@@ -2,7 +2,6 @@ use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
 
-
 /// Process the modification of oracles (add or remove)
 ///
 /// Accounts:

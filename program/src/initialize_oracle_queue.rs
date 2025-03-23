@@ -1,4 +1,3 @@
-
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
@@ -71,7 +70,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         &ephemeral_vrf_api::ID,
         oracle_queue_bytes.len(),
         &[QUEUE, oracle_info.key.to_bytes().as_ref(), &[args.index]],
-        oracle_queue_pda(&oracle_info.key, args.index).1,
+        oracle_queue_pda(oracle_info.key, args.index).1,
         system_program,
         signer_info,
     )?;

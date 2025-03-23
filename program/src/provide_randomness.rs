@@ -11,12 +11,12 @@ use steel::*;
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
 /// 1. `[]` program_identity_info - Used to allow the callback program
-/// to verify the identity of the oracle program
+///     to verify the identity of the oracle program
 /// 1. `[]` oracle_data_info - Oracle data account associated with the signer
 /// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
 /// 3. `[]` callback_program_info - Program to call with the randomness
 /// 4. `[]` system_program_info - System program for resizing accounts
-/// 5+ `[varies]` remaining_accounts - Accounts needed for the callback
+/// 5. `[varies]` remaining_accounts - Accounts needed for the callback
 ///
 /// Requirements:
 ///
@@ -69,9 +69,8 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     }
 
     // Load and remove oracle item from the queue
-    let mut oracle_queue = QueueAccount::try_from_bytes_with_discriminator(
-        &mut oracle_queue_info.try_borrow_data()?,
-    )?;
+    let mut oracle_queue =
+        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_info.try_borrow_data()?)?;
     let item = oracle_queue
         .items
         .get(&args.input)
@@ -103,7 +102,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Invoke callback with randomness
     callback_program_info.has_address(&item.callback_program_id)?;
-    let mut accounts_metas  = vec![AccountMeta{
+    let mut accounts_metas = vec![AccountMeta {
         pubkey: *program_identity_info.key,
         is_signer: true,
         is_writable: false,
@@ -114,7 +113,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         is_writable: acc.is_writable,
     }));
     let mut callback_data = Vec::with_capacity(
-        item.callback_discriminator.len() + output.0.len() + item.callback_args.len()
+        item.callback_discriminator.len() + output.0.len() + item.callback_args.len(),
     );
     callback_data.extend_from_slice(&item.callback_discriminator);
     callback_data.extend_from_slice(&output.0);
@@ -125,7 +124,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         accounts: accounts_metas,
         data: callback_data,
     };
-    let mut all_accounts  = vec![callback_program_info.clone()];
+    let mut all_accounts = vec![callback_program_info.clone()];
     all_accounts.extend(vec![program_identity_info.clone()]);
     all_accounts.extend_from_slice(remaining_accounts);
 
@@ -208,7 +207,7 @@ fn verify_vrf(
         None => return false,
     };
 
-    let rhs_hash = match add_ristretto(&commitment_hash_compressed, &rhs_hash_r) {
+    let rhs_hash = match add_ristretto(commitment_hash_compressed, &rhs_hash_r) {
         Some(result) => result,
         None => return false,
     };

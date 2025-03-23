@@ -1,16 +1,17 @@
+#![allow(unexpected_cfgs)]
+use crate::instruction::ConsumeRandomness;
 use anchor_lang::prelude::borsh::{BorshDeserialize, BorshSerialize};
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::hash::hash;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::system_program;
 use anchor_lang::solana_program::sysvar::slot_hashes;
-use crate::instruction::ConsumeRandomness;
-use anchor_lang::solana_program::hash::hash;
-use anchor_lang::solana_program::program::invoke;
 
 declare_id!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD");
 
 #[program]
 pub mod use_randomness {
+    use anchor_lang::solana_program::program::invoke_signed;
     use super::*;
 
     pub fn request_randomness(ctx: Context<RequestRandomnessCtx>, client_seed: u8) -> Result<()> {
@@ -27,27 +28,35 @@ pub mod use_randomness {
             hash(&[client_seed]).to_bytes(),
             None,
         );
-        invoke(
+        invoke_signed(
             &ix,
             &[
                 ctx.accounts.payer.to_account_info(),
+                ctx.accounts.program_identity.to_account_info(),
                 ctx.accounts.oracle_queue.to_account_info(),
                 ctx.accounts.system_program.to_account_info(),
                 ctx.accounts.slot_hashes.to_account_info(),
             ],
+            &[&[IDENTITY, &[ctx.bumps.program_identity]]]
         )?;
         Ok(())
     }
 
-    pub fn consume_randomness(ctx: Context<ConsumeRandomnessCtx>, randomness: [u8; 32]) -> Result<()> {
+    pub fn consume_randomness(
+        ctx: Context<ConsumeRandomnessCtx>,
+        randomness: [u8; 32],
+    ) -> Result<()> {
         // If the PDA identity is a signer, this means the VRF program is the caller
-        msg!("VRF identity: {:?}", ctx.accounts.vrf_program_identity.key());
-        msg!("VRF identity is signer: {:?}", ctx.accounts.vrf_program_identity.is_signer);
-        // We can safely consume the randomness
         msg!(
-            "Consuming random number: {:?}",
-            random_u32(&randomness)
+            "VRF identity: {:?}",
+            ctx.accounts.vrf_program_identity.key()
         );
+        msg!(
+            "VRF identity is signer: {:?}",
+            ctx.accounts.vrf_program_identity.is_signer
+        );
+        // We can safely consume the randomness
+        msg!("Consuming random number: {:?}", random_u32(&randomness));
         Ok(())
     }
 }
@@ -56,6 +65,9 @@ pub mod use_randomness {
 pub struct RequestRandomnessCtx<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
+    /// CHECK: Used to verify the identity of the program
+    #[account(seeds = [b"identity"], bump)]
+    pub program_identity: AccountInfo<'info>,
     /// CHECK: Oracle queue
     #[account(mut, address = DEFAULT_QUEUE)]
     pub oracle_queue: AccountInfo<'info>,
@@ -86,6 +98,7 @@ pub fn create_request_randomness_ix(
         program_id: VRF_PROGRAM_ID,
         accounts: vec![
             AccountMeta::new(payer, true),
+            AccountMeta::new_readonly(Pubkey::find_program_address(&[IDENTITY], &ID).0, true),
             AccountMeta::new(oracle_queue, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(slot_hashes::ID, false),
@@ -94,9 +107,10 @@ pub fn create_request_randomness_ix(
             caller_seed,
             callback_program_id,
             callback_discriminator: callback_discriminator.to_vec(),
-            callback_accounts_metas: accounts_metas.unwrap_or(vec![]),
-            callback_args: callback_args.unwrap_or(vec![]),
-        }.to_bytes(),
+            callback_accounts_metas: accounts_metas.unwrap_or_default(),
+            callback_args: callback_args.unwrap_or_default(),
+        }
+        .to_bytes(),
     }
 }
 
@@ -117,9 +131,11 @@ impl RequestRandomness {
     }
 }
 
-pub const DEFAULT_QUEUE: Pubkey =  pubkey!("4tFFjWnz1qZDJEskJXjxdMzdv71v16ukAPiRqiAbXJ3L");
+pub const DEFAULT_QUEUE: Pubkey = pubkey!("BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe");
 pub const VRF_PROGRAM_ID: Pubkey = pubkey!("VrffXU38S8MzqTtTYQG3M8GNwheKH8n77HVEZUdakH8");
 pub const VRF_PROGRAM_IDENTITY: Pubkey = pubkey!("AwF6egvgtC2RdkfUEcCCtjHP2iWhCzFBMi1a6bjv9Hkp");
+
+pub const IDENTITY: &[u8] = b"identity";
 
 pub struct VrfProgram;
 
@@ -137,10 +153,5 @@ pub struct SerializableAccountMeta {
 }
 
 pub fn random_u32(bytes: &[u8; 32]) -> u32 {
-    u32::from_le_bytes([
-        bytes[0],
-        bytes[3],
-        bytes[7],
-        bytes[12],
-    ])
+    u32::from_le_bytes([bytes[0], bytes[3], bytes[7], bytes[12]])
 }

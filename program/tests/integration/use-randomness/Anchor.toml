@@ -30,13 +30,13 @@ program = "../../../../target/deploy/ephemeral_vrf_program.so"
 upgradeable = false
 
 [[test.validator.account]]
-address = "56yHrCZRjjxycg6G4WNSmTjTRFGThmwtMEujqULXGBom"
+address = "BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe"
 filename = "tests/fixtures/oracles.json"
 
 [[test.validator.account]]
-address = "AMHnwqt9eNTDaEskVZWfK5gDbcQvTphokDJeQZEBBEHX"
+address = "4g469Nt55ffcqwR1TwLbpVpE19joPUGdmExPtLR1Lk2Q"
 filename = "tests/fixtures/oracle_data.json"
 
 [[test.validator.account]]
-address = "4tFFjWnz1qZDJEskJXjxdMzdv71v16ukAPiRqiAbXJ3L"
+address = "BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe"
 filename = "tests/fixtures/oracle_queue.json"

@@ -1,12 +1,13 @@
 mod fixtures;
 
-use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_DISCRIMINATOR, TEST_CALLBACK_PROGRAM};
+use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_ORACLE};
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-use solana_program::hash::Hash;
+use solana_program::hash::{hash, Hash};
 use solana_program::rent::Rent;
+use solana_program::sysvar::slot_hashes;
 use solana_program_test::{processor, read_file, BanksClient, ProgramTest};
 use solana_sdk::account::Account;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
@@ -23,6 +24,18 @@ async fn setup() -> (BanksClient, Keypair, Hash) {
     // Setup the test authority
     program_test.add_account(
         Keypair::from_bytes(&TEST_AUTHORITY).unwrap().pubkey(),
+        Account {
+            lamports: 1_000_000_000,
+            data: vec![],
+            owner: system_program::id(),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+
+    // Setup the oracle
+    program_test.add_account(
+        Keypair::from_bytes(&TEST_ORACLE).unwrap().pubkey(),
         Account {
             lamports: 1_000_000_000,
             data: vec![],
@@ -55,6 +68,7 @@ async fn run_test() {
     let (banks, payer, blockhash) = setup().await;
 
     let authority_keypair = Keypair::from_bytes(&TEST_AUTHORITY).unwrap();
+    let new_oracle_keypair = Keypair::from_bytes(&TEST_ORACLE).unwrap();
 
     // Submit initialize transaction.
     let ix = initialize(payer.pubkey());
@@ -73,7 +87,6 @@ async fn run_test() {
     println!("Oracles data: {:?}", oracles_account.data);
 
     // Submit add oracle transaction.
-    let new_oracle_keypair = Keypair::from(payer.insecure_clone());
     let new_oracle = new_oracle_keypair.pubkey();
     let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&payer);
     let ix = add_oracle(
@@ -129,15 +142,8 @@ async fn run_test() {
     println!("Oracle queue data: {:?}", oracle_queue_account.data);
 
     // Submit request for randomness transaction.
-    let seed_pk = Pubkey::new_unique();
-    let ix = request_randomness(
-        payer.pubkey(),
-        oracle_queue_address,
-        TEST_CALLBACK_PROGRAM,
-        TEST_CALLBACK_DISCRIMINATOR.to_vec(),
-        None,
-        Some(seed_pk.to_bytes()),
-    );
+    let seed_bytes = hash(&[0]).to_bytes();
+    let ix = request_randomness(payer.pubkey(), 0);
     let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
@@ -162,7 +168,7 @@ async fn run_test() {
             .first()
             .unwrap()
             .seed,
-        seed_pk.to_bytes()
+        seed_bytes
     );
 
     // Compute off-chain VRF
@@ -248,4 +254,35 @@ async fn run_test() {
             .unwrap()
             .minimum_balance(oracles_data.len())
     );
+}
+
+pub fn request_randomness(signer: Pubkey, client_seed: u8) -> Instruction {
+    // Constants from the integration test instruction layout (IDL)
+    const DISCRIMINATOR: [u8; 8] = [213, 5, 173, 166, 37, 236, 31, 18];
+
+    // Default addresses as per instruction
+    let oracle_queue = pubkey!("BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe");
+
+    // Program identity PDA (seeded with "identity")
+    let (program_identity, _) = Pubkey::find_program_address(&[IDENTITY], &TEST_CALLBACK_PROGRAM);
+
+    // Construct account metas
+    let accounts = vec![
+        AccountMeta::new(signer, true),
+        AccountMeta::new_readonly(program_identity, false),
+        AccountMeta::new(oracle_queue, false),
+        AccountMeta::new_readonly(system_program::ID, false),
+        AccountMeta::new_readonly(slot_hashes::ID, false),
+        AccountMeta::new_readonly(ephemeral_vrf_api::ID, false),
+    ];
+
+    // Instruction data: discriminator + client_seed
+    let mut data = DISCRIMINATOR.to_vec();
+    data.push(client_seed);
+
+    Instruction {
+        program_id: TEST_CALLBACK_PROGRAM,
+        accounts,
+        data,
+    }
 }
