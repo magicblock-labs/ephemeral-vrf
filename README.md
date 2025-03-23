@@ -16,11 +16,11 @@ EphemeralVrf enables dApps to request unpredictable, tamper-resistant random val
 
 ## Instructions
 
-- [`Initialize`](api/src/instruction.rs#Initialize) – Initialize the program state.
-- [`ModifyOracle`](api/src/instruction.rs#ModifyOracle) – Add or modify oracle information.
-- [`InitializeOracleQueue`](api/src/instruction.rs#InitializeOracleQueue) – Initialize a new oracle queue.
-- [`RequestRandomness`](api/src/instruction.rs#RequestRandomness) – Request a new random value.
-- [`ProvideRandomness`](api/src/instruction.rs#ProvideRandomness) – Provide randomness for a request.
+- [`RequestRandomness`](program/src/request_randomness.rs) – Request a new random value.
+- [`ProvideRandomness`](program/src/provide_randomness.rs) – Provide randomness for a request.
+- [`Initialize`](program/src/initialize.rs) – Initialize the program state.
+- [`ModifyOracle`](program/src/modify_oracles.rs) – Add or modify oracle information.
+- [`InitializeOracleQueue`](program/src/initialize_oracle_queue.rs) – Initialize a new oracle queue.
 
 ##  Errors
 
