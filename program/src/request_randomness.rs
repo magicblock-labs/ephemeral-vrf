@@ -41,6 +41,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
             callback_discriminator: args.callback_discriminator,
             callback_program_id: args.callback_program_id,
             callback_accounts_meta: args.callback_accounts_metas,
+            callback_args: args.callback_args,
         },
     );
 

@@ -13,17 +13,18 @@ pub struct QueueAccount {
 
 /// Same as before, but you no longer need to rely on `seed` inside QueueItem
 /// if your key is truly the seed. You can either keep or remove it.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
 pub struct QueueItem {
     pub seed: [u8; 32], // optionally remove if the key is always the same
     pub slot: u64,
     pub slothash: [u8; 32],
-    pub callback_discriminator: [u8; 8],
+    pub callback_discriminator: Vec<u8>,
     pub callback_program_id: Pubkey,
     pub callback_accounts_meta: Vec<SerializableAccountMeta>,
+    pub callback_args: Vec<u8>,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
 pub struct SerializableAccountMeta {
     pub pubkey: Pubkey,
     pub is_signer: bool,
@@ -48,27 +49,28 @@ impl QueueAccount {
         let mut size = 8 + 4;
 
         // For each key-value pair:
-        for (_key, item) in &self.items {
-            // +32 bytes for the key: [u8; 32]
+        for (_, item) in &self.items {
+            // 32 bytes for the key
             size += 32;
 
-            // Now add the size of QueueItem fields:
-            //   seed: [u8; 32]        => 32
-            //   slot: u64             => 8
-            //   slothash: [u8; 32]    => 32
-            //   callback_discriminator: [u8; 8] => 8
-            //   callback_program_id: Pubkey => 32
-            //
-            //   callback_accounts_meta: Vec<SerializableAccountMeta>
-            //     => 4 bytes for length + ( len * size_of_each )
-            //     => each SerializableAccountMeta has:
-            //          pubkey (32 bytes) + is_signer (1 byte) + is_writable (1 byte)
-            //        => 34 bytes each
-            let meta_count = item.callback_accounts_meta.len();
-            let item_size = 32 + 8 + 32 + 8 + 32    // fixed fields
-                + 4                                 // length of callback_accounts_meta
-                + (meta_count * 34); // each element
-            size += item_size;
+            // QueueItem size:
+            // - seed: 32 bytes
+            // - slot: 8 bytes
+            // - slothash: 32 bytes
+            // - callback_discriminator: 4 bytes (length) + actual bytes
+            // - callback_program_id: 32 bytes
+            // - callback_accounts_meta: 4 bytes (length) + (34 bytes * count)
+            // - callback_args: 4 bytes (length) + actual bytes
+            size += 32
+                + 8
+                + 32
+                + 4
+                + item.callback_discriminator.len()
+                + 32
+                + 4
+                + (item.callback_accounts_meta.len() * 34)
+                + 4
+                + item.callback_args.len();
         }
 
         size

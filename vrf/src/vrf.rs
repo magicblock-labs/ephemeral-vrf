@@ -1,20 +1,14 @@
+use crate::consts::{VRF_PREFIX_CHALLENGE, VRF_PREFIX_HASH_TO_POINT, VRF_PREFIX_NONCE};
 use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_POINT, RISTRETTO_BASEPOINT_TABLE};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use hkdf::Hkdf;
 use sha2::Sha512;
+use solana_sdk::hash::hash;
 use solana_sdk::signature::Keypair;
-use solana_sdk::signer::Signer;
-
-// Domain prefixes
-const VRF_PREFIX_HASH_TO_POINT: &[u8] = b"VRF-Ephem-HashToPoint";
-const VRF_PREFIX_NONCE: &[u8] = b"VRF-Ephem-Nonce";
-const VRF_PREFIX_CHALLENGE: &[u8] = b"VRF-Ephem-Challenge";
 
 // Key Generation (done once by the oracle)
-pub fn generate_vrf_keypair() -> (Scalar, RistrettoPoint) {
-    let keypair = Keypair::new();
-    println!("Solana Ed25519 Pubkey: {:?}", keypair.pubkey());
+pub fn generate_vrf_keypair(keypair: &Keypair) -> (Scalar, RistrettoPoint) {
     let hkdf = Hkdf::<Sha512>::new(Some(b"VRF-Solana-SecretKey"), &keypair.to_bytes());
     let mut okm = [0u8; 64];
     hkdf.expand(b"VRF-Key", &mut okm)
@@ -25,14 +19,31 @@ pub fn generate_vrf_keypair() -> (Scalar, RistrettoPoint) {
 }
 
 // Hash-to-Point using built-in hash_to_group function, plus domain separation
-pub fn hash_to_point(input: &[u8]) -> RistrettoPoint {
-    RistrettoPoint::hash_from_bytes::<Sha512>(&[VRF_PREFIX_HASH_TO_POINT, input].concat())
+fn hash_to_point(input: &[u8]) -> RistrettoPoint {
+    let hashed_input = hash(
+        [VRF_PREFIX_HASH_TO_POINT.to_vec(), input.to_vec()]
+            .concat()
+            .as_slice(),
+    );
+    &Scalar::from_bytes_mod_order(hashed_input.to_bytes()) * &RISTRETTO_BASEPOINT_POINT
+}
+
+// fn hash_to_point(input: &[u8; 32]) -> RistrettoPoint {
+//     let mut concatenated = [0u8; 64];
+//     concatenated[..32].copy_from_slice(VRF_PREFIX_HASH_TO_POINT);
+//     concatenated[32..].copy_from_slice(input);
+//     RistrettoPoint::from_uniform_bytes(&concatenated)
+// }
+
+// Hash-to-Scalar using built-in hash_to_scalar function, plus domain separation
+fn hash_to_scalar(input: &[u8; 32]) -> Scalar {
+    Scalar::from_bytes_mod_order(input.clone())
 }
 
 // VRF computation
 pub fn compute_vrf(
     sk: Scalar,
-    input: &[u8],
+    input: &[u8; 32],
 ) -> (
     CompressedRistretto,
     (CompressedRistretto, CompressedRistretto, Scalar),
@@ -45,7 +56,7 @@ pub fn compute_vrf(
     let pk = &sk * RISTRETTO_BASEPOINT_TABLE;
 
     // RFC 9381 Nonce generation with domain separation (updated to derive from sk)
-    let k = Scalar::hash_from_bytes::<Sha512>(
+    let nonce_input = hash(
         &[
             VRF_PREFIX_NONCE,
             &sk.to_bytes(), // Secret key is included here
@@ -53,6 +64,8 @@ pub fn compute_vrf(
         ]
         .concat(),
     );
+    let nonce_hash = hash(&nonce_input.to_bytes());
+    let k = Scalar::from_bytes_mod_order(nonce_hash.to_bytes());
 
     // Commitments: one for basepoint G, one for hashed point h
     let commitment_base = k * RISTRETTO_BASEPOINT_POINT;
@@ -68,7 +81,9 @@ pub fn compute_vrf(
         input.to_vec(),
     ]
     .concat();
-    let c = Scalar::hash_from_bytes::<Sha512>(&challenge_input);
+
+    let challenge_hash = hash(challenge_input.as_slice());
+    let c = hash_to_scalar(&challenge_hash.to_bytes());
 
     // Response
     let s = k + c * sk;
@@ -82,7 +97,7 @@ pub fn compute_vrf(
 // Verify VRF Proof
 pub fn verify_vrf(
     pk: RistrettoPoint,
-    input: &[u8],
+    input: &[u8; 32],
     output_compressed: CompressedRistretto,
     proof: (CompressedRistretto, CompressedRistretto, Scalar),
 ) -> bool {
@@ -114,7 +129,8 @@ pub fn verify_vrf(
         input.to_vec(),
     ]
     .concat();
-    let c: Scalar = Scalar::hash_from_bytes::<Sha512>(&challenge_input);
+    let challenge_hash = hash(challenge_input.as_slice());
+    let c = hash_to_scalar(&challenge_hash.to_bytes());
 
     // ---------------------------
     // 1) Schnorr check for G:

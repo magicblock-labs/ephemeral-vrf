@@ -9,6 +9,8 @@ pub enum EphemeralVrfError {
     RandomnessRequestNotFound = 1,
     #[error("Invalid proof")]
     InvalidProof = 2,
+    #[error("Invalid callback accounts")]
+    InvalidCallbackAccounts = 3,
 }
 
 error!(EphemeralVrfError);

@@ -1,7 +1,9 @@
 mod macros;
+mod oracle;
 mod oracles;
 mod queue;
 
+pub use oracle::*;
 pub use oracles::*;
 pub use queue::*;
 
@@ -13,8 +15,9 @@ use crate::consts::*;
 #[derive(Clone, Copy, Debug, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
 pub enum AccountDiscriminator {
     Oracles = 0,
-    Counter = 1,
-    Queue = 2,
+    Oracle = 1,
+    Counter = 2,
+    Queue = 3,
 }
 
 impl AccountDiscriminator {
@@ -32,9 +35,12 @@ pub trait AccountWithDiscriminator {
 pub fn oracles_pda() -> (Pubkey, u8) {
     Pubkey::find_program_address(&[ORACLES], &crate::id())
 }
+pub fn oracle_data_pda(identity: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[ORACLE_DATA, identity.to_bytes().as_slice()], &crate::id())
+}
 
 /// Fetch PDA of the queue account.
-pub fn oracle_queue_pda(identity: Pubkey, index: u8) -> (Pubkey, u8) {
+pub fn oracle_queue_pda(identity: &Pubkey, index: u8) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[QUEUE, identity.to_bytes().as_slice(), &[index]],
         &crate::id(),

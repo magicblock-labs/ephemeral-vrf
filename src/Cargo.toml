@@ -8,7 +8,5 @@ name = "ephemeral_vrf"
 path = "main.rs"
 
 [dependencies]
-curve25519-dalek.workspace = true
+ephemeral-vrf = { workspace = true }
 solana-sdk.workspace = true
-sha2.workspace = true
-hkdf.workspace = true

@@ -2,7 +2,6 @@ use crate::prelude::SerializableAccountMeta;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-//use solana_curve25519::scalar::PodScalar;
 use steel::*;
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
@@ -22,7 +21,7 @@ pub struct Initialize {}
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct ModifyOracle {
     pub identity: Pubkey,
-    pub oracle_pubkey: Pubkey,
+    pub oracle_pubkey: PodRistrettoPoint,
     pub operation: u8,
 }
 
@@ -36,8 +35,9 @@ pub struct InitializeOracleQueue {
 pub struct RequestRandomness {
     pub caller_seed: [u8; 32],
     pub callback_program_id: Pubkey,
-    pub callback_discriminator: [u8; 8],
+    pub callback_discriminator: Vec<u8>,
     pub callback_accounts_metas: Vec<SerializableAccountMeta>,
+    pub callback_args: Vec<u8>,
 }
 
 #[repr(C)]
@@ -49,7 +49,6 @@ pub struct ProvideRandomness {
     pub commitment_base_compressed: PodRistrettoPoint,
     pub commitment_hash_compressed: PodRistrettoPoint,
     pub s: PodScalar,
-    pub randomness: [u8; 32],
 }
 
 instruction!(EphemeralVrfInstruction, Initialize);

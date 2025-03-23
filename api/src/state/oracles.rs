@@ -5,14 +5,7 @@ use steel::*;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct Oracles {
-    pub oracles: Vec<Oracle>,
-}
-
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
-pub struct Oracle {
-    pub identity: Pubkey,
-    pub oracle_publickey: Pubkey,
-    pub registration_slot: u64,
+    pub oracles: Vec<Pubkey>,
 }
 
 impl AccountWithDiscriminator for Oracles {
@@ -23,7 +16,7 @@ impl AccountWithDiscriminator for Oracles {
 
 impl Oracles {
     pub fn size_with_discriminator(&self) -> usize {
-        let item_size = 32 + 32 + 8;
+        let item_size = 32;
         8 + 4 + (item_size * self.oracles.len())
     }
 }

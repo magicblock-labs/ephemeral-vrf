@@ -88,10 +88,16 @@ pub fn resize_pda<'a, 'info>(
 ) -> Result<(), ProgramError> {
     let new_minimum_balance = Rent::default().minimum_balance(new_size);
     let lamports_diff = new_minimum_balance.saturating_sub(pda.lamports());
-    invoke(
-        &system_instruction::transfer(payer.key, pda.key, lamports_diff),
-        &[payer.clone(), pda.clone(), system_program.clone()],
-    )?;
+    if lamports_diff > 0 {
+        invoke(
+            &system_instruction::transfer(payer.key, pda.key, lamports_diff),
+            &[payer.clone(), pda.clone(), system_program.clone()],
+        )?;
+    } else {
+        let abs_diff = pda.lamports().saturating_sub(new_minimum_balance);
+        **pda.try_borrow_mut_lamports()? -= abs_diff;
+        **payer.try_borrow_mut_lamports()? += abs_diff;
+    }
 
     pda.realloc(new_size, false)?;
     Ok(())

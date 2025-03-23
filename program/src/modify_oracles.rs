@@ -7,7 +7,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     let args = ModifyOracle::try_from_bytes(data)?;
 
     // Load accounts.
-    let [signer_info, oracles_info, system_program] = accounts else {
+    let [signer_info, oracles_info, oracle_data_info, system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;
@@ -25,20 +25,30 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         .is_writable()?
         .has_seeds(&[ORACLES], &ephemeral_vrf_api::ID)?;
 
+    oracle_data_info.is_writable()?.has_seeds(
+        &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
+        &ephemeral_vrf_api::ID,
+    )?;
+
     let oracles_data = oracles_info.try_borrow_data()?;
     let mut oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data)?;
     drop(oracles_data);
 
     if args.operation == 0 {
-        oracles.oracles.push(Oracle {
-            identity: args.identity,
-            oracle_publickey: args.oracle_pubkey,
-            registration_slot: Clock::get()?.slot,
-        });
+        oracles.oracles.push(args.identity);
+        create_program_account::<Oracle>(
+            oracle_data_info,
+            system_program,
+            signer_info,
+            &ephemeral_vrf_api::ID,
+            &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
+        )?;
+        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+        oracle_data.vrf_pubkey = args.oracle_pubkey;
+        oracle_data.registration_slot = Clock::get()?.slot;
     } else {
-        oracles
-            .oracles
-            .retain(|oracle| oracle.identity != args.identity);
+        oracles.oracles.retain(|oracle| oracle.ne(&args.identity));
+        close_account(oracle_data_info, signer_info)?;
     }
 
     resize_pda(
