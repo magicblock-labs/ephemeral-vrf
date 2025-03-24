@@ -4,6 +4,7 @@ mod initialize_oracle_queue;
 mod modify_oracles;
 mod provide_randomness;
 mod request_randomness;
+mod verify;
 
 use initialize::*;
 use initialize_oracle_queue::*;
