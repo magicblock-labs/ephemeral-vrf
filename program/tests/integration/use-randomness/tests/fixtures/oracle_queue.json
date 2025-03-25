@@ -3,12 +3,12 @@
   "account": {
     "lamports": 1000000000000,
     "data": [
-      "AwAAAAAAAAAAAAAA",
+      "AwAAAAAAAAAAAAAAAA==",
       "base64"
     ],
     "owner": "VrffXU38S8MzqTtTYQG3M8GNwheKH8n77HVEZUdakH8",
     "executable": false,
     "rentEpoch": 18446744073709551615,
-    "space": 12
+    "space": 13
   }
 }

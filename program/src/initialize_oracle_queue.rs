@@ -62,7 +62,10 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     }
 
     let mut oracle_queue_bytes = vec![];
-    let oracle_queue = QueueAccount::default();
+    let oracle_queue = QueueAccount {
+        index: args.index,
+        ..Default::default()
+    };
     oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
 
     create_pda(

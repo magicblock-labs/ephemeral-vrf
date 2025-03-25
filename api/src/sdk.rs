@@ -67,6 +67,7 @@ pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> I
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn provide_randomness(
     oracle_identity: Pubkey,
     oracle_queue: Pubkey,

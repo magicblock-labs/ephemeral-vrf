@@ -7,6 +7,8 @@ use std::collections::HashMap;
 /// The account now holds a HashMap keyed by [u8; 32].
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
 pub struct QueueAccount {
+    /// The index of the queue.
+    pub index: u8,
     /// Each entry is keyed by the `seed` ([u8; 32]) that was previously part of QueueItem.
     pub items: HashMap<[u8; 32], QueueItem>,
 }
@@ -15,9 +17,6 @@ pub struct QueueAccount {
 /// if your key is truly the seed. You can either keep or remove it.
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
 pub struct QueueItem {
-    pub seed: [u8; 32], // optionally remove if the key is always the same
-    pub slot: u64,
-    pub slothash: [u8; 32],
     pub callback_discriminator: Vec<u8>,
     pub callback_program_id: Pubkey,
     pub callback_accounts_meta: Vec<SerializableAccountMeta>,
@@ -46,7 +45,7 @@ impl QueueAccount {
     pub fn size_with_discriminator(&self) -> usize {
         // 8 bytes for the account discriminator
         // + 4 bytes for the length of the HashMap (Borsh encodes the map length as u32).
-        let mut size = 8 + 4;
+        let mut size = 8 + 1 + 4;
 
         // For each key-value pair:
         for item in self.items.values() {
@@ -54,17 +53,11 @@ impl QueueAccount {
             size += 32;
 
             // QueueItem size:
-            // - seed: 32 bytes
-            // - slot: 8 bytes
-            // - slothash: 32 bytes
             // - callback_discriminator: 4 bytes (length) + actual bytes
             // - callback_program_id: 32 bytes
             // - callback_accounts_meta: 4 bytes (length) + (34 bytes * count)
             // - callback_args: 4 bytes (length) + actual bytes
-            size += 32
-                + 8
-                + 32
-                + 4
+            size += 4
                 + item.callback_discriminator.len()
                 + 32
                 + 4

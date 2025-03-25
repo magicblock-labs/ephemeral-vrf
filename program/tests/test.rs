@@ -5,7 +5,7 @@ use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-use solana_program::hash::{hash, Hash};
+use solana_program::hash::Hash;
 use solana_program::rent::Rent;
 use solana_program::sysvar::slot_hashes;
 use solana_program_test::{processor, read_file, BanksClient, ProgramTest};
@@ -88,11 +88,16 @@ async fn run_test() {
 
     // Submit add oracle transaction.
     let new_oracle = new_oracle_keypair.pubkey();
-    let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&payer);
+    let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&new_oracle_keypair);
     let ix = add_oracle(
         authority_keypair.pubkey(),
         new_oracle,
         oracle_vrf_pk.compress().to_bytes(),
+    );
+
+    println!(
+        "oracle vrf pk: {:?}",
+        Pubkey::from(oracle_vrf_pk.compress().to_bytes())
     );
     let tx = Transaction::new_signed_with_payer(
         &[ix],
@@ -117,6 +122,10 @@ async fn run_test() {
     assert_eq!(oracle_data_info.owner, ephemeral_vrf_api::ID);
     let oracle_data = Oracle::try_from_bytes(&oracle_data_info.data).unwrap();
     assert!(oracle_data.registration_slot > 0);
+    assert_eq!(
+        oracle_data.vrf_pubkey.0,
+        oracle_vrf_pk.compress().to_bytes()
+    );
 
     // Submit init oracle queue transaction.
     let ix = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
@@ -142,7 +151,6 @@ async fn run_test() {
     println!("Oracle queue data: {:?}", oracle_queue_account.data);
 
     // Submit request for randomness transaction.
-    let seed_bytes = hash(&[0]).to_bytes();
     let ix = request_randomness(payer.pubkey(), 0);
     let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
     let res = banks.process_transaction(tx).await;
@@ -159,17 +167,6 @@ async fn run_test() {
         QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.items.len(), 1);
-    assert_eq!(
-        oracle_queue
-            .items
-            .iter()
-            .map(|(_, v)| v)
-            .collect::<Vec<_>>()
-            .first()
-            .unwrap()
-            .seed,
-        seed_bytes
-    );
 
     // Compute off-chain VRF
     let vrf_input = oracle_queue

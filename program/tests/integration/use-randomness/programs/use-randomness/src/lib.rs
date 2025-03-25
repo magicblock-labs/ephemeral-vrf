@@ -6,12 +6,12 @@ use anchor_lang::solana_program::hash::hash;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::system_program;
 use anchor_lang::solana_program::sysvar::slot_hashes;
+use anchor_lang::solana_program::program::invoke_signed;
 
 declare_id!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD");
 
 #[program]
 pub mod use_randomness {
-    use anchor_lang::solana_program::program::invoke_signed;
     use super::*;
 
     pub fn request_randomness(ctx: Context<RequestRandomnessCtx>, client_seed: u8) -> Result<()> {

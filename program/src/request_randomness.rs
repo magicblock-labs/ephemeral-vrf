@@ -69,9 +69,6 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     oracle_queue.items.insert(
         combined_hash.to_bytes(),
         QueueItem {
-            seed: args.caller_seed,
-            slot,
-            slothash,
             callback_discriminator: args.callback_discriminator,
             callback_program_id: args.callback_program_id,
             callback_accounts_meta: args.callback_accounts_metas,

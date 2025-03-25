@@ -1,0 +1,21 @@
+
+[package]
+name = "vrf-oracle"
+version = "0.1.0"
+edition = "2021"
+description = "Oracle client for EphemeralVrf"
+authors = ["Magicblock Labs"]
+
+[dependencies]
+clap.workspace = true
+ephemeral-vrf-api = { workspace = true}
+ephemeral-vrf = { workspace = true}
+curve25519-dalek.workspace = true
+solana-curve25519.workspace = true
+solana-sdk.workspace = true
+solana-client.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+log.workspace = true
+env_logger.workspace = true
+solana-account-decoder.workspace = true

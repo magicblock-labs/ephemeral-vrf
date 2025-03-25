@@ -1,0 +1,11 @@
+{
+  "pubkey": "paywJiVATrVDLYLmowJqzG6MsaCt77L8WyTnBb2754t",
+  "account": {
+    "lamports": 1000000000000,
+    "data": [],
+    "owner": "11111111111111111111111111111111",
+    "executable": false,
+    "rentEpoch": 18446744073709551615,
+    "space": 0
+  }
+}
