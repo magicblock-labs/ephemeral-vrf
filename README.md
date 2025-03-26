@@ -110,6 +110,11 @@ Run unit and integration tests:
 cargo test-sbf --features test-sbf
 ```
 
+Run the oracle service:
+```sh
+RUST_LOG=info cargo run --bin vrf-oracle 
+```
+
 ## Example Usage
 
 See the [integration tests](program/tests/integration/use-randomness/programs/use-randomness/src/lib.rs) for example usage of the program.

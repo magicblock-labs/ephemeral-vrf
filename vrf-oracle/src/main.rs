@@ -94,6 +94,8 @@ impl OracleClient {
             "Starting VRF Oracle with public key: {}",
             self.keypair.pubkey()
         );
+        info!("Connecting to RPC: {}", self.rpc_url);
+        info!("Connecting to WebSocket: {}", self.websocket_url);
 
         let rpc_client = Arc::new(RpcClient::new_with_commitment(
             &self.rpc_url,
@@ -122,9 +124,6 @@ impl OracleClient {
             &ephemeral_vrf_api::ID,
             Some(program_config),
         )?;
-
-        info!("Connected to RPC URL: {}", self.rpc_url);
-        info!("Connected to WebSocket URL: {}", self.websocket_url);
 
         let rpc_client = Arc::clone(&rpc_client);
         fetch_and_process_program_accounts(self, &rpc_client, filters).await?;
