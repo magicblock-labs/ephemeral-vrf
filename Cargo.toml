@@ -7,11 +7,11 @@ version = "0.1.0"
 edition = "2021"
 license = "Business Source License 1.1"
 authors = ["MagicBlock Labs <dev@magicblock.xyz>"]
-homepage = ""
-documentation = ""
-repository = ""
+homepage = "https://www.magicblock.xyz/"
+documentation = "https://docs.magicblock.xyz/"
+repository = "https://github.com/magicblock-labs/ephemeral-vrf"
 readme = "./README.md"
-keywords = ["solana"]
+keywords = ["solana", "vrf", "ephemeral-rollups", "magicblock"]
 
 [workspace.dependencies]
 ephemeral-vrf = { path = "./vrf", version = "0.1.0" }
