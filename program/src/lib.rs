@@ -42,7 +42,7 @@ pub fn process_instruction(
         EphemeralVrfInstruction::UndelegateOracleQueue => {
             process_undelegate_oracle_queue(accounts, data)?
         }
-        EphemeralVrfInstruction::ProcessUndelegation => process_undelegation(accounts, data)?,
+        EphemeralVrfInstruction::ProcessUndelegation => process_undelegation(accounts, &data[7..])?,
     }
 
     Ok(())

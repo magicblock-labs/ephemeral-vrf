@@ -1,11 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["api", "program", "src", "vrf", "vrf-oracle"]
+members = ["api", "program", "src", "vrf", "vrf-oracle", "vrf-cli"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "Apache-2.0"
+license = "Business Source License 1.1"
+authors = ["MagicBlock Labs <dev@magicblock.xyz>"]
 homepage = ""
 documentation = ""
 repository = ""

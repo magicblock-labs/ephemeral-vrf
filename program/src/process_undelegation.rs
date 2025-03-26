@@ -28,7 +28,7 @@ pub fn process_undelegation(accounts: &[AccountInfo<'_>], data: &[u8]) -> Progra
     let pda_seeds: Vec<Vec<u8>> = PdaSeeds::parse(data)?;
 
     // Load accounts.
-    let [payer, oracle_queue_info, delegation_buffer, system_program] = accounts else {
+    let [oracle_queue_info, delegation_buffer, payer, system_program] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 

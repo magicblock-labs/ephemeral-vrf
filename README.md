@@ -35,6 +35,14 @@ EphemeralVrf enables dApps to request unpredictable, tamper-resistant random val
 - [`Oracles`](api/src/state/oracles.rs) – Collection of oracles.
 - [`Queue`](api/src/state/queue.rs) – Oracle queue for randomness requests.
 
+## Oracle CLI
+
+CLI for managing oracles. See all available commands with:
+
+```bash
+cargo run --bin vrf-cli -- --help
+```
+
 ## What is a VRF?
 
 A Verifiable Random Function (VRF) is a cryptographic primitive that maps inputs to verifiable pseudorandom outputs. The key properties of a VRF are:

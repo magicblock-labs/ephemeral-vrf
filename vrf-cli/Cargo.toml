@@ -1,0 +1,15 @@
+[package]
+name = "vrf-cli"
+version = {workspace = true}
+edition = {workspace = true}
+description = "CLI tool for interacting with Ephemeral VRF Solana program"
+authors = {workspace = true}
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+ephemeral-vrf-api.workspace = true
+ephemeral-vrf.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+tokio.workspace = true
