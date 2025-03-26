@@ -78,11 +78,7 @@ jobs:
       - name: run build
         run: |
           cargo build
-
-      - name: run tests
-        run: |
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
-          cargo test-sbf --features test-sbf
+          cargo build-sbf --features test-sbf
 
       - name: run integration tests
         run: |
@@ -91,3 +87,8 @@ jobs:
           cd program/tests/integration/use-randomness
           npm install
           bolt test
+
+      - name: run tests
+        run: |
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          cargo test-sbf --features test-sbf
