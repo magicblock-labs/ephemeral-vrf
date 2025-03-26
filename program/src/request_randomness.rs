@@ -15,14 +15,14 @@ use steel::*;
 /// Requirements:
 ///
 /// - The signer must be a valid signer
-/// - The program identity must be a valid signer and derived from the callback program ID
+/// - The program identity must be a valid signer and derived from the vrf-macro program ID
 /// - The oracle queue must be properly initialized
 /// - The request is stored in the oracle queue with a combined hash derived from:
 ///   - caller_seed
 ///   - current slot
 ///   - slot hash
-///   - callback discriminator
-///   - callback program ID
+///   - vrf-macro discriminator
+///   - vrf-macro program ID
 ///
 /// 1. Verify the signer
 /// 2. Verify the program identity

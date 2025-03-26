@@ -46,7 +46,7 @@ async fn setup() -> (BanksClient, Keypair, Hash) {
         },
     );
 
-    // Setup program to test callback
+    // Setup program to test vrf-macro
     let data = read_file("tests/integration/use-randomness/target/deploy/use_randomness.so");
     program_test.add_account(
         pubkey!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD"),
@@ -252,7 +252,7 @@ async fn run_test() {
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 
-    // Delegate oracle queue to new delegate
+    // Delegate oracle queue to new vrf-macro
     let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address, 0);
     let tx = Transaction::new_signed_with_payer(
         &[ix],

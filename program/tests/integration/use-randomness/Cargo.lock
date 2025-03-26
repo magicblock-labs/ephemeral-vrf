@@ -532,6 +532,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "ephemeral-vrf-sdk"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "borsh 0.10.4",
+ "ephemeral-vrf-sdk-vrf-macro",
+ "solana-program",
+]
+
+[[package]]
+name = "ephemeral-vrf-sdk-vrf-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1688,6 +1707,7 @@ name = "use-randomness"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
+ "ephemeral-vrf-sdk",
 ]
 
 [[package]]

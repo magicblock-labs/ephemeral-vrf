@@ -13,4 +13,10 @@ describe("use-randomness", () => {
     const tx = await program.methods.requestRandomness(randomSeed).rpc();
     console.log("Request randomness", tx);
   });
+
+  it("Simpler request randomness", async () => {
+    const randomSeed = Math.floor(Math.random() * 256);
+    const tx = await program.methods.simplerRequestRandomness(randomSeed).rpc();
+    console.log("Request randomness", tx);
+  });
 });

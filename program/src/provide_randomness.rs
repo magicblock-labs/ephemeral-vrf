@@ -2,30 +2,30 @@ use crate::verify::verify_vrf;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
 
-/// Process the provide randomness instruction which verifies VRF proof and executes callback
+/// Process the provide randomness instruction which verifies VRF proof and executes vrf-macro
 ///
 /// Accounts:
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
-/// 1. `[]` program_identity_info - Used to allow the callback program
+/// 1. `[]` program_identity_info - Used to allow the vrf-macro program
 ///     to verify the identity of the oracle program
 /// 1. `[]` oracle_data_info - Oracle data account associated with the signer
 /// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
 /// 3. `[]` callback_program_info - Program to call with the randomness
 /// 4. `[]` system_program_info - System program for resizing accounts
-/// 5. `[varies]` remaining_accounts - Accounts needed for the callback
+/// 5. `[varies]` remaining_accounts - Accounts needed for the vrf-macro
 ///
 /// Requirements:
 ///
 /// - Signer must be a registered oracle with valid VRF keypair
 /// - VRF proof must be valid for the given input and output
 /// - Request must exist in the oracle queue
-/// - Oracle signer must not be included in callback accounts
+/// - Oracle signer must not be included in vrf-macro accounts
 ///
 /// 1. Verify the oracle signer and load oracle data
 /// 2. Verify the VRF proof
 /// 3. Remove the request from the queue
-/// 4. Invoke the callback with the randomness
+/// 4. Invoke the vrf-macro with the randomness
 pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse args
     let args = ProvideRandomness::try_from_bytes(data)?;
@@ -88,7 +88,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
     oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
 
-    // Check that the oracle signer is not in the callback accounts
+    // Check that the oracle signer is not in the vrf-macro accounts
     if item
         .callback_accounts_meta
         .iter()
@@ -97,7 +97,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
     }
 
-    // Invoke callback with randomness
+    // Invoke vrf-macro with randomness
     callback_program_info.has_address(&item.callback_program_id)?;
     let mut accounts_metas = vec![AccountMeta {
         pubkey: *program_identity_info.key,
@@ -125,7 +125,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     all_accounts.extend(vec![program_identity_info.clone()]);
     all_accounts.extend_from_slice(remaining_accounts);
 
-    // Invoke the callback with randomness and signed identity
+    // Invoke the vrf-macro with randomness and signed identity
     let id = program_identity_pda();
     program_identity_info.has_address(&id.0)?;
     let pda_signer_seeds: &[&[&[u8]]] = &[&[IDENTITY, &[id.1]]];

@@ -4,7 +4,7 @@ use steel::*;
 
 /// Process the undelegation of an Oracle queue from the delegation program
 ///
-/// This instruction is a callback from the delegation program to complete the undelegation process
+/// This instruction is a vrf-macro from the delegation program to complete the undelegation process
 /// for an Oracle queue that was previously delegated. It's called by the delegation program as part
 /// of the undelegation flow.
 ///

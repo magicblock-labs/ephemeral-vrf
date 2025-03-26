@@ -67,14 +67,13 @@ async fn main() -> Result<()> {
 
     loop {
         match oracle.run().await {
-            Ok(_) => break,
+            Ok(_) => continue,
             Err(e) => {
                 eprintln!("Oracle crashed with error: {:?}. Restarting...", e);
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
             }
         }
     }
-    Ok(())
 }
 
 impl OracleClient {
@@ -102,8 +101,6 @@ impl OracleClient {
             CommitmentConfig::processed(),
         ));
 
-        let rpc_client_for_spawn = Arc::clone(&rpc_client);
-
         let filters = vec![RpcFilterType::Memcmp(Memcmp::new(
             0,
             MemcmpEncodedBytes::Bytes(vec![3, 0, 0, 0, 0, 0, 0, 0]),
@@ -125,14 +122,7 @@ impl OracleClient {
             Some(program_config),
         )?;
 
-        let rpc_client = Arc::clone(&rpc_client);
         fetch_and_process_program_accounts(self, &rpc_client, filters).await?;
-
-        let cloned_self = OracleClient::new(
-            Keypair::from_bytes(&self.keypair.to_bytes())?,
-            self.rpc_url.clone(),
-            self.websocket_url.clone(),
-        );
 
         while let Ok(update) = subscription.recv() {
             if let Some(data) = update.value.account.data.decode() {
@@ -140,13 +130,7 @@ impl OracleClient {
                     if let Ok(oracle_queue) = QueueAccount::try_from_bytes_with_discriminator(&data)
                     {
                         let pubkey = Pubkey::from_str(&update.value.pubkey).unwrap_or_default();
-                        process_oracle_queue(
-                            &cloned_self,
-                            &rpc_client_for_spawn,
-                            &pubkey,
-                            &oracle_queue,
-                        )
-                        .await;
+                        process_oracle_queue(self, &rpc_client, &pubkey, &oracle_queue).await;
                     }
                 }
             }

@@ -4,7 +4,7 @@ use steel::*;
 
 /// Process the delegation of an Oracle queue to the delegation program
 ///
-/// This instruction allows an authority to delegate an Oracle queue to the delegation program,
+/// This instruction allows an authority to vrf-macro an Oracle queue to the delegation program,
 /// enabling other programs to interact with the queue through the delegation mechanism.
 ///
 /// Accounts:
@@ -30,7 +30,7 @@ use steel::*;
 /// 3. Set up the delegation accounts structure.
 /// 4. Create the PDA seeds for the Oracle queue.
 /// 5. Configure the delegation parameters.
-/// 6. Call the delegation program to delegate the Oracle queue account.
+/// 6. Call the delegation program to vrf-macro the Oracle queue account.
 pub fn process_delegate_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     let args = DelegateOracleQueue::try_from_bytes(data)?;
 

@@ -1,0 +1,22 @@
+[package]
+name = "ephemeral-vrf-sdk"
+description = "Ephemeral Vrf Integration SDK"
+version = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+documentation = { workspace = true }
+homepage = { workspace = true }
+keywords = { workspace = true }
+readme = { workspace = true }
+edition = { workspace = true }
+license = "MIT"
+
+[features]
+default = []
+anchor = ["anchor-lang"]
+
+[dependencies]
+anchor-lang = { workspace = true, optional = true }
+solana-program = { workspace = true }
+ephemeral-vrf-sdk-vrf-macro = { workspace = true }
+borsh = { workspace = true }

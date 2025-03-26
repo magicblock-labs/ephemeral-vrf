@@ -1,11 +1,14 @@
 #![allow(unexpected_cfgs)]
 use crate::instruction::ConsumeRandomness;
-use anchor_lang::prelude::borsh::{BorshDeserialize, BorshSerialize};
+use anchor_lang::prelude::borsh::BorshDeserialize;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hash;
-use anchor_lang::solana_program::instruction::Instruction;
-use anchor_lang::solana_program::system_program;
 use anchor_lang::solana_program::sysvar::slot_hashes;
+use ephemeral_vrf_sdk::anchor::{vrf, VrfProgram};
+use ephemeral_vrf_sdk::instructions::create_request_randomness_ix;
+use ephemeral_vrf_sdk::rnd::random_u32;
+use ephemeral_vrf_sdk::consts::IDENTITY;
+use ephemeral_vrf_sdk::instructions::RequestRandomnessParams;
 use anchor_lang::solana_program::program::invoke_signed;
 
 declare_id!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD");
@@ -19,15 +22,14 @@ pub mod use_randomness {
             "Generating a random number: (from program: {:?})",
             ctx.program_id
         );
-        let ix = create_request_randomness_ix(
-            ctx.accounts.payer.key(),
-            ctx.accounts.oracle_queue.key(),
-            ID,
-            ConsumeRandomness::DISCRIMINATOR,
-            None,
-            hash(&[client_seed]).to_bytes(),
-            None,
-        );
+        let ix = create_request_randomness_ix(RequestRandomnessParams {
+            payer: ctx.accounts.payer.key(),
+            oracle_queue: ctx.accounts.oracle_queue.key(),
+            callback_program_id: ID,
+            callback_discriminator: ConsumeRandomness::DISCRIMINATOR.to_vec(),
+            caller_seed: hash(&[client_seed]).to_bytes(),
+            ..Default::default()
+        });
         invoke_signed(
             &ix,
             &[
@@ -37,8 +39,25 @@ pub mod use_randomness {
                 ctx.accounts.system_program.to_account_info(),
                 ctx.accounts.slot_hashes.to_account_info(),
             ],
-            &[&[IDENTITY, &[ctx.bumps.program_identity]]]
+            &[&[IDENTITY, &[ctx.bumps.program_identity]]],
         )?;
+        Ok(())
+    }
+
+    pub fn simpler_request_randomness(
+        ctx: Context<RequestRandomnessSimplerCtx>,
+        client_seed: u8,
+    ) -> Result<()> {
+        msg!("Generating a random number");
+        let ix = create_request_randomness_ix(RequestRandomnessParams {
+            payer: ctx.accounts.payer.key(),
+            oracle_queue: ctx.accounts.oracle_queue.key(),
+            callback_program_id: crate::ID,
+            callback_discriminator: ConsumeRandomness::DISCRIMINATOR.to_vec(),
+            caller_seed: hash(&[client_seed]).to_bytes(),
+            ..Default::default()
+        });
+        ctx.accounts.invoke_signed_vrf(&ctx.accounts.payer.to_account_info(), &ix)?;
         Ok(())
     }
 
@@ -69,7 +88,7 @@ pub struct RequestRandomnessCtx<'info> {
     #[account(seeds = [b"identity"], bump)]
     pub program_identity: AccountInfo<'info>,
     /// CHECK: Oracle queue
-    #[account(mut, address = DEFAULT_QUEUE)]
+    #[account(mut, address = DEFAULT_TEST_QUEUE)]
     pub oracle_queue: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
     /// CHECK: Slot hashes sysvar
@@ -78,80 +97,21 @@ pub struct RequestRandomnessCtx<'info> {
     pub vrf_program: Program<'info, VrfProgram>,
 }
 
+#[vrf]
+#[derive(Accounts)]
+pub struct RequestRandomnessSimplerCtx<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: The oracle queue
+    #[account(mut, address = DEFAULT_TEST_QUEUE)]
+    pub oracle_queue: AccountInfo<'info>,
+}
+
 #[derive(Accounts)]
 pub struct ConsumeRandomnessCtx<'info> {
-    #[account(address = VRF_PROGRAM_IDENTITY)]
+    /// Signer PDA of the VRF program
+    #[account(address = ephemeral_vrf_sdk::consts::VRF_PROGRAM_IDENTITY)]
     pub vrf_program_identity: Signer<'info>,
 }
 
-/// SDK methods
-pub fn create_request_randomness_ix(
-    payer: Pubkey,
-    oracle_queue: Pubkey,
-    callback_program_id: Pubkey,
-    callback_discriminator: &[u8],
-    accounts_metas: Option<Vec<SerializableAccountMeta>>,
-    caller_seed: [u8; 32],
-    callback_args: Option<Vec<u8>>,
-) -> Instruction {
-    Instruction {
-        program_id: VRF_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(payer, true),
-            AccountMeta::new_readonly(Pubkey::find_program_address(&[IDENTITY], &ID).0, true),
-            AccountMeta::new(oracle_queue, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(slot_hashes::ID, false),
-        ],
-        data: RequestRandomness {
-            caller_seed,
-            callback_program_id,
-            callback_discriminator: callback_discriminator.to_vec(),
-            callback_accounts_metas: accounts_metas.unwrap_or_default(),
-            callback_args: callback_args.unwrap_or_default(),
-        }
-        .to_bytes(),
-    }
-}
-
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
-pub struct RequestRandomness {
-    pub caller_seed: [u8; 32],
-    pub callback_program_id: Pubkey,
-    pub callback_discriminator: Vec<u8>,
-    pub callback_accounts_metas: Vec<SerializableAccountMeta>,
-    pub callback_args: Vec<u8>,
-}
-
-impl RequestRandomness {
-    pub fn to_bytes(&self) -> Vec<u8> {
-        let mut bytes = vec![3, 0, 0, 0, 0, 0, 0, 0];
-        self.serialize(&mut bytes).unwrap();
-        bytes
-    }
-}
-
-pub const DEFAULT_QUEUE: Pubkey = pubkey!("BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe");
-pub const VRF_PROGRAM_ID: Pubkey = pubkey!("VrffXU38S8MzqTtTYQG3M8GNwheKH8n77HVEZUdakH8");
-pub const VRF_PROGRAM_IDENTITY: Pubkey = pubkey!("AwF6egvgtC2RdkfUEcCCtjHP2iWhCzFBMi1a6bjv9Hkp");
-
-pub const IDENTITY: &[u8] = b"identity";
-
-pub struct VrfProgram;
-
-impl Id for VrfProgram {
-    fn id() -> Pubkey {
-        VRF_PROGRAM_ID
-    }
-}
-
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
-pub struct SerializableAccountMeta {
-    pub pubkey: Pubkey,
-    pub is_signer: bool,
-    pub is_writable: bool,
-}
-
-pub fn random_u32(bytes: &[u8; 32]) -> u32 {
-    u32::from_le_bytes([bytes[0], bytes[3], bytes[7], bytes[12]])
-}
+pub const DEFAULT_TEST_QUEUE: Pubkey = pubkey!("BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe");
