@@ -5,8 +5,10 @@ It uses a network of oracles to generate and verify random values on-chain.
 
 ## Overview     
 
-EphemeralVrf enables dApps to request unpredictable, tamper-resistant random values that can be verified by anyone. It uses cryptographic proofs to ensure that the randomness is both fair and verifiable.
-   
+EphemeralVrf enables dApps to request unpredictable, tamper-resistant random values that can be verified by anyone.
+
+The implementation follows [RFC 9381](https://datatracker.ietf.org/doc/html/rfc9381), utilizing Curve25519's Ristretto group for elliptic curve operations and Schnorr-like signatures for proof verification. 
+
 ## API
 - [`Consts`](api/src/consts.rs) – Program constants.
 - [`Error`](api/src/error.rs) – Custom program errors.
@@ -34,14 +36,6 @@ EphemeralVrf enables dApps to request unpredictable, tamper-resistant random val
 - [`Oracle`](api/src/state/oracle.rs) – Oracle data structure.
 - [`Oracles`](api/src/state/oracles.rs) – Collection of oracles.
 - [`Queue`](api/src/state/queue.rs) – Oracle queue for randomness requests.
-
-## Oracle CLI
-
-CLI for managing oracles. See all available commands with:
-
-```bash
-cargo run --bin vrf-cli -- --help
-```
 
 ## What is a VRF?
 
@@ -122,6 +116,14 @@ cargo test-sbf --features test-sbf
 Run the oracle service:
 ```sh
 RUST_LOG=info cargo run --bin vrf-oracle 
+```
+
+## Oracle CLI
+
+CLI for managing oracles. See all available commands with:
+
+```bash
+cargo run --bin vrf-cli -- --help
 ```
 
 ## Example Usage
