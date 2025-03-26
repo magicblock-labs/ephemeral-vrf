@@ -20,6 +20,7 @@ test-sbf = ["ephemeral-vrf-api/unit_test_config"]
 
 [dependencies]
 ephemeral-vrf-api = { workspace = true, features = [] }
+ephemeral-rollups-sdk.workspace = true
 solana-curve25519.workspace = true
 curve25519-dalek.workspace = true
 solana-program.workspace = true

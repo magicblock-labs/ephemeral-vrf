@@ -13,6 +13,7 @@ EphemeralVrf enables dApps to request unpredictable, tamper-resistant random val
 - [`Instruction`](api/src/instruction.rs) – Declared instructions.
 - [`SDK`](api/src/sdk.rs) – Custom program events.
 - [`State`](api/src/state) – Program state definitions.
+- [`DelegateOracleQueue`](program/src/delegate_oracle_queue.rs) – Delegate an Oracle queue to the delegation program.
 
 ## Instructions
 

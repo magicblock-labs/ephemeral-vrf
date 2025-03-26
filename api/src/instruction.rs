@@ -11,6 +11,9 @@ pub enum EphemeralVrfInstruction {
     InitializeOracleQueue = 2,
     RequestRandomness = 3,
     ProvideRandomness = 4,
+    DelegateOracleQueue = 5,
+    UndelegateOracleQueue = 6,
+    ProcessUndelegation = 196,
 }
 
 #[repr(C)]
@@ -40,6 +43,13 @@ pub struct RequestRandomness {
     pub callback_args: Vec<u8>,
 }
 
+pub struct PdaSeeds;
+impl PdaSeeds {
+    pub fn parse(data: &[u8]) -> Result<Vec<Vec<u8>>, ProgramError> {
+        Vec::<Vec<u8>>::try_from_slice(data).map_err(|_| ProgramError::InvalidInstructionData)
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct ProvideRandomness {
@@ -51,10 +61,24 @@ pub struct ProvideRandomness {
     pub s: PodScalar,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct DelegateOracleQueue {
+    pub index: u8,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct UndelegateOracleQueue {
+    pub index: u8,
+}
+
 instruction!(EphemeralVrfInstruction, Initialize);
 instruction!(EphemeralVrfInstruction, ModifyOracle);
 instruction!(EphemeralVrfInstruction, InitializeOracleQueue);
 instruction!(EphemeralVrfInstruction, ProvideRandomness);
+instruction!(EphemeralVrfInstruction, DelegateOracleQueue);
+instruction!(EphemeralVrfInstruction, UndelegateOracleQueue);
 
 impl RequestRandomness {
     pub fn to_bytes(&self) -> Vec<u8> {

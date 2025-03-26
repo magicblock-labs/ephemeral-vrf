@@ -1,6 +1,7 @@
 mod fixtures;
 
 use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_ORACLE};
+use ephemeral_rollups_sdk::consts::DELEGATION_PROGRAM_ID;
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::PodRistrettoPoint;
@@ -49,6 +50,19 @@ async fn setup() -> (BanksClient, Keypair, Hash) {
     let data = read_file("tests/integration/use-randomness/target/deploy/use_randomness.so");
     program_test.add_account(
         pubkey!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD"),
+        Account {
+            lamports: Rent::default().minimum_balance(data.len()).max(1),
+            data,
+            owner: solana_sdk::bpf_loader::id(),
+            executable: true,
+            rent_epoch: 0,
+        },
+    );
+
+    // Setup delegation program
+    let data = read_file("tests/integration/use-randomness/tests/fixtures/dlp.so");
+    program_test.add_account(
+        DELEGATION_PROGRAM_ID,
         Account {
             lamports: Rent::default().minimum_balance(data.len()).max(1),
             data,
@@ -237,6 +251,25 @@ async fn run_test() {
     );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
+
+    // Delegate oracle queue to new delegate
+    let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address, 0);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&new_oracle_keypair.pubkey()),
+        &[&new_oracle_keypair],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Verify delegation was successful by checking the queue account owner
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
     // Verify oracle was removed.
     let oracles_info = banks.get_account(oracles_address).await.unwrap().unwrap();

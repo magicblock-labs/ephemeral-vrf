@@ -21,8 +21,8 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
+use std::str::FromStr;
 use std::sync::Arc;
-use std::{str::FromStr};
 
 /// VRF Oracle client
 #[derive(Parser, Debug)]
@@ -151,7 +151,9 @@ impl OracleClient {
                 }
             }
         }
-        client.shutdown().map_err(|_| anyhow!("Invalid state: failed to shutdown client"))?;
+        client
+            .shutdown()
+            .map_err(|_| anyhow!("Invalid state: failed to shutdown client"))?;
         Ok(())
     }
 }
@@ -194,7 +196,7 @@ async fn process_oracle_queue(
     oracle_queue: &QueueAccount,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
-        if oracle_queue.items.len() > 0 {
+        if !oracle_queue.items.is_empty() {
             info!(
                 "Processing queue: {}, with len: {}",
                 queue,

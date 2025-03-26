@@ -1376,6 +1376,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "ephemeral-rollups-sdk"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56731ad0ced18514fac7f54c25c5c2574d82e8513f9b81854e768a61cd49799c"
+dependencies = [
+ "borsh 0.10.4",
+ "ephemeral-rollups-sdk-attribute-commit",
+ "ephemeral-rollups-sdk-attribute-delegate",
+ "ephemeral-rollups-sdk-attribute-ephemeral",
+ "paste",
+ "solana-program",
+]
+
+[[package]]
+name = "ephemeral-rollups-sdk-attribute-commit"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c70e3365fbf7040dee37094795430e1b1fb9627ef14a314d40c496747add27e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "ephemeral-rollups-sdk-attribute-delegate"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91f52b8bbdd0cd20b3a1d14fcd5a7723e104f1e1714f99d948d5e5762abc26e6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "ephemeral-rollups-sdk-attribute-ephemeral"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f788b49d519e8273a3ec5c7791d4b6b73eb35b68a7331043dcdd93bf0a3be12"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "ephemeral-vrf"
 version = "0.1.0"
 dependencies = [
@@ -1391,6 +1438,7 @@ version = "0.1.0"
 dependencies = [
  "borsh 1.5.5",
  "bytemuck",
+ "ephemeral-rollups-sdk",
  "num_enum",
  "solana-curve25519",
  "solana-program",
@@ -1410,6 +1458,7 @@ name = "ephemeral-vrf-program"
 version = "0.1.0"
 dependencies = [
  "curve25519-dalek 4.1.3",
+ "ephemeral-rollups-sdk",
  "ephemeral-vrf",
  "ephemeral-vrf-api",
  "solana-curve25519",

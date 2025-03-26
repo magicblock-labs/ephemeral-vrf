@@ -1,3 +1,8 @@
+use ephemeral_rollups_sdk::consts::{DELEGATION_PROGRAM_ID, MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
+use ephemeral_rollups_sdk::pda::{
+    delegate_buffer_pda_from_delegated_account_and_owner_program,
+    delegation_metadata_pda_from_delegated_account, delegation_record_pda_from_delegated_account,
+};
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
 use steel::*;
@@ -97,5 +102,38 @@ pub fn provide_randomness(
             s,
         }
         .to_bytes(),
+    }
+}
+
+pub fn delegate_oracle_queue(signer: Pubkey, queue: Pubkey, index: u8) -> Instruction {
+    let buffer = delegate_buffer_pda_from_delegated_account_and_owner_program(&queue, &crate::ID);
+    let delegation_record = delegation_record_pda_from_delegated_account(&queue);
+    let delegation_metadata = delegation_metadata_pda_from_delegated_account(&queue);
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(queue, false),
+            AccountMeta::new(buffer, false),
+            AccountMeta::new(delegation_record, false),
+            AccountMeta::new(delegation_metadata, false),
+            AccountMeta::new_readonly(DELEGATION_PROGRAM_ID, false),
+            AccountMeta::new_readonly(crate::ID, false),
+            AccountMeta::new_readonly(system_program::ID, false),
+        ],
+        data: DelegateOracleQueue { index }.to_bytes(),
+    }
+}
+
+pub fn undelegate_oracle_queue(signer: Pubkey, queue: Pubkey, index: u8) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(signer, true),
+            AccountMeta::new(queue, false),
+            AccountMeta::new(MAGIC_CONTEXT_ID, false),
+            AccountMeta::new_readonly(MAGIC_PROGRAM_ID, false),
+        ],
+        data: UndelegateOracleQueue { index }.to_bytes(),
     }
 }
