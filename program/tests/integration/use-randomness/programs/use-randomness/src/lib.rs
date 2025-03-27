@@ -6,7 +6,7 @@ use anchor_lang::solana_program::hash::hash;
 use anchor_lang::solana_program::sysvar::slot_hashes;
 use ephemeral_vrf_sdk::anchor::{vrf, VrfProgram};
 use ephemeral_vrf_sdk::instructions::create_request_randomness_ix;
-use ephemeral_vrf_sdk::rnd::random_u32;
+use ephemeral_vrf_sdk::rnd::{random_u32, random_u8_with_range, random_bool};
 use ephemeral_vrf_sdk::consts::IDENTITY;
 use ephemeral_vrf_sdk::instructions::RequestRandomnessParams;
 use anchor_lang::solana_program::program::invoke_signed;
@@ -75,7 +75,9 @@ pub mod use_randomness {
             ctx.accounts.vrf_program_identity.is_signer
         );
         // We can safely consume the randomness
-        msg!("Consuming random number: {:?}", random_u32(&randomness));
+        msg!("Consuming random u32: {:?}", random_u32(&randomness));
+        msg!("Consuming random u8 (range 1-6): {:?}", random_u8_with_range(&randomness, 1, 6));
+        msg!("Consuming random bool: {:?}", random_bool(&randomness));
         Ok(())
     }
 }

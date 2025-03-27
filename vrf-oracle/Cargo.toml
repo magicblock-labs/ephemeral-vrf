@@ -1,10 +1,10 @@
 
 [package]
 name = "vrf-oracle"
-version = "0.1.0"
-edition = "2021"
-description = "Oracle client for EphemeralVrf"
-authors = ["Magicblock Labs"]
+version = { workspace = true }
+edition = { workspace = true }
+description = "Ephemeral VRF Oracle"
+authors = { workspace = true }
 
 [dependencies]
 clap.workspace = true
