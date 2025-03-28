@@ -1,3 +1,4 @@
+use solana_program::hash::hash;
 use crate::verify::verify_vrf;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
@@ -113,7 +114,8 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         item.callback_discriminator.len() + output.0.len() + item.callback_args.len(),
     );
     callback_data.extend_from_slice(&item.callback_discriminator);
-    callback_data.extend_from_slice(&output.0);
+    let rdn = hash(&output.0);
+    callback_data.extend_from_slice(rdn.to_bytes().as_ref());
     callback_data.extend_from_slice(&item.callback_args);
 
     let ix = Instruction {

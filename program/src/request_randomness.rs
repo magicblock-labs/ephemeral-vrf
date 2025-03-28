@@ -54,6 +54,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         .try_into()
         .map_err(|_| ProgramError::UnsupportedSysvar)?;
     let slot = Clock::get()?.slot;
+    let time = Clock::get()?.unix_timestamp;
 
     let combined_hash = hashv(&[
         &args.caller_seed,
@@ -61,6 +62,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         &slothash,
         &args.callback_discriminator,
         &args.callback_program_id.to_bytes(),
+        &time.to_le_bytes(),
     ]);
 
     let mut oracle_queue =

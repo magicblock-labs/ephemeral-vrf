@@ -1,0 +1,281 @@
+{
+  "address": "VrffXU38S8MzqTtTYQG3M8GNwheKH8n77HVEZUdakH8",
+  "metadata": {
+    "name": "ephemeral_vrf",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Ephemeral VRF"
+  },
+  "instructions": [
+    {
+      "name": "initialize",
+      "discriminator": [
+        1
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "oraclesPda"
+        },
+        {
+          "name": "systemProgram"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initializeOracleQueue",
+      "discriminator": [
+        2
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "identity"
+        },
+        {
+          "name": "oracleDataPda"
+        },
+        {
+          "name": "oracleQueuePda"
+        },
+        {
+          "name": "systemProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "requestRandomness",
+      "discriminator": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "accounts": [
+        {
+          "name": "caller",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "programIdentity"
+        },
+        {
+          "name": "oracleQueue",
+          "writable": true
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "Slot Hashes",
+          "address": "SysvarS1otHashes111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "callerSeed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "callbackProgramId",
+          "type": "pubkey"
+        },
+        {
+          "name": "callbackDiscriminator",
+          "type": {
+            "vec": "u8"
+          }
+        },
+        {
+          "name": "account_metas",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "AccountMeta"
+              }
+            }
+          }
+        },
+        {
+          "name": "callbackArgs",
+          "type": {
+            "vec": "u8"
+          }
+        }
+      ]
+    },
+    {
+      "name": "provideRandomness",
+      "discriminator": [
+        4, 13, 203, 241, 93, 225, 85, 54
+      ],
+      "accounts": [
+        {
+          "name": "oracleIdentity",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "vrfProgramIdentity"
+        },
+        {
+          "name": "oracleDataPda",
+          "writable": true
+        },
+        {
+          "name": "oracleQueue",
+          "writable": true
+        },
+        {
+          "name": "callbackProgramId"
+        },
+        {
+          "name": "systemProgram"
+        },
+        {
+          "name": "accountCallback",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "rndSeed",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
+      "name": "delegateOracleQueue",
+      "discriminator": [
+        5
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "queue"
+        },
+        {
+          "name": "buffer"
+        },
+        {
+          "name": "delegationRecord"
+        },
+        {
+          "name": "delegationMetadata"
+        },
+        {
+          "name": "delegationProgramId"
+        },
+        {
+          "name": "programId"
+        },
+        {
+          "name": "systemProgram"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "undelegateOracleQueue",
+      "discriminator": [
+        6
+      ],
+      "accounts": [
+        {
+          "name": "signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "queue"
+        },
+        {
+          "name": "magicContextId"
+        },
+        {
+          "name": "magicProgramId"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 0,
+      "name": "Unauthorized",
+      "msg": "Unauthorized authority"
+    },
+    {
+      "code": 1,
+      "name": "RandomnessRequestNotFound",
+      "msg": "Randomness request not found"
+    },
+    {
+      "code": 2,
+      "name": "InvalidProof",
+      "msg": "Invalid proof"
+    }
+  ],
+  "types": [
+    {
+      "name": "AccountMeta",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pubkey",
+            "type": "pubkey"
+          },
+          {
+            "name": "is_signer",
+            "type": "bool"
+          },
+          {
+            "name": "is_writable",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ]
+}
