@@ -1,6 +1,6 @@
-use solana_program::hash::hash;
 use crate::verify::verify_vrf;
 use ephemeral_vrf_api::prelude::*;
+use solana_program::hash::hash;
 use steel::*;
 
 /// Process the provide randomness instruction which verifies VRF proof and executes vrf-macro

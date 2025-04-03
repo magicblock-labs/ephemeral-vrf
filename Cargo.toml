@@ -3,7 +3,7 @@ resolver = "2"
 members = ["api", "program", "src", "vrf", "vrf-oracle", "vrf-cli", "sdk"]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "Business Source License 1.1"
 authors = ["MagicBlock Labs <dev@magicblock.xyz>"]
@@ -14,9 +14,9 @@ readme = "./README.md"
 keywords = ["solana", "vrf", "ephemeral-rollups", "magicblock"]
 
 [workspace.dependencies]
-ephemeral-vrf = { path = "./vrf", version = "0.1.1" }
-ephemeral-vrf-api = { path = "./api", version = "0.1.1" }
-ephemeral-vrf-sdk-vrf-macro = { path = "sdk/vrf-macro", version = "0.1.1" }
+ephemeral-vrf = { path = "./vrf", version = "0.1.2" }
+ephemeral-vrf-api = { path = "./api", version = "0.1.2" }
+ephemeral-vrf-sdk-vrf-macro = { path = "sdk/vrf-macro", version = "0.1.2" }
 ephemeral-rollups-sdk = "0.2.4"
 borsh = ">=0.10.1"
 bytemuck = "1.14"

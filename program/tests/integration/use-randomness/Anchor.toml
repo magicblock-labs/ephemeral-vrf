@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-use_randomness = "AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD"
+use_randomness = "CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi"
 
 [registry]
 url = "https://api.apr.dev"
@@ -25,18 +25,18 @@ program = "tests/fixtures/dlp.so"
 upgradeable = false
 
 [[test.genesis]]
-address = "VrffXU38S8MzqTtTYQG3M8GNwheKH8n77HVEZUdakH8"
+address = "Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz"
 program = "../../../../target/deploy/ephemeral_vrf_program.so"
 upgradeable = false
 
 [[test.validator.account]]
-address = "BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe"
+address = "GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb"
 filename = "tests/fixtures/oracles.json"
 
 [[test.validator.account]]
-address = "4g469Nt55ffcqwR1TwLbpVpE19joPUGdmExPtLR1Lk2Q"
+address = "CXMc1eCiEp9YXjanBNB6HUvbWCmxeVmhcR3bPXw8exJA"
 filename = "tests/fixtures/oracle_data.json"
 
 [[test.validator.account]]
-address = "BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe"
+address = "GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb"
 filename = "tests/fixtures/oracle_queue.json"

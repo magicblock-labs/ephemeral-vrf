@@ -11,7 +11,7 @@ use ephemeral_vrf_sdk::consts::IDENTITY;
 use ephemeral_vrf_sdk::instructions::RequestRandomnessParams;
 use anchor_lang::solana_program::program::invoke_signed;
 
-declare_id!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD");
+declare_id!("CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi");
 
 #[program]
 pub mod use_randomness {
@@ -116,4 +116,4 @@ pub struct ConsumeRandomnessCtx<'info> {
     pub vrf_program_identity: Signer<'info>,
 }
 
-pub const DEFAULT_TEST_QUEUE: Pubkey = pubkey!("BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe");
+pub const DEFAULT_TEST_QUEUE: Pubkey = pubkey!("GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb");
