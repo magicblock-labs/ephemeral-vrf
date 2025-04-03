@@ -24,6 +24,9 @@ use solana_sdk::{
 use std::str::FromStr;
 use std::sync::Arc;
 
+/// Maximum number of retry attempts for failed transactions
+const MAX_RETRY_ATTEMPTS: u8 = 5;
+
 /// VRF Oracle client
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -189,12 +192,21 @@ async fn process_oracle_queue(
         }
 
         for (input_seed, item) in oracle_queue.items.iter() {
-            match ProcessableItem(item.clone())
-                .process_item(oracle_client, rpc_client, input_seed, queue)
-                .await
-            {
-                Ok(signature) => println!("Transaction signature: {}", signature),
-                Err(e) => println!("Failed to send transaction: {:?}", e),
+            let mut attempts = 0;
+            while attempts < MAX_RETRY_ATTEMPTS {
+                match ProcessableItem(item.clone())
+                    .process_item(oracle_client, rpc_client, input_seed, queue)
+                    .await
+                {
+                    Ok(signature) => {
+                        println!("Transaction signature: {}", signature);
+                        break;
+                    }
+                    Err(e) => {
+                        attempts += 1;
+                        println!("Failed to send transaction: {:?}", e)
+                    }
+                }
             }
         }
     }
@@ -240,7 +252,9 @@ impl ProcessableItem {
             }));
 
         let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-        let blockhash = rpc_client.get_latest_blockhash()?;
+        let blockhash = rpc_client
+            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
+            .0;
 
         let tx = Transaction::new_signed_with_payer(
             &[compute_ix, ix],

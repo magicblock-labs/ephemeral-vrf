@@ -6,4 +6,4 @@ use solana_program::pubkey;
 use steel::Pubkey;
 
 pub(crate) const TEST_CALLBACK_PROGRAM: Pubkey =
-    pubkey!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD");
+    pubkey!("CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi");

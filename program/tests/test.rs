@@ -49,7 +49,7 @@ async fn setup() -> (BanksClient, Keypair, Hash) {
     // Setup program to test vrf-macro
     let data = read_file("tests/integration/use-randomness/target/deploy/use_randomness.so");
     program_test.add_account(
-        pubkey!("AL32mNVFdhxHXztaWuNWvwoiPYCHofWmVRNH49pMCafD"),
+        pubkey!("CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi"),
         Account {
             lamports: Rent::default().minimum_balance(data.len()).max(1),
             data,
@@ -291,10 +291,12 @@ pub fn request_randomness(signer: Pubkey, client_seed: u8) -> Instruction {
     const DISCRIMINATOR: [u8; 8] = [213, 5, 173, 166, 37, 236, 31, 18];
 
     // Default addresses as per instruction
-    let oracle_queue = pubkey!("BXQ9Bx1BUYN75Hk8ys1ZMiQtQUn5VqcWUD52hJKTTXPe");
+    let oracle_queue = pubkey!("GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb");
 
     // Program identity PDA (seeded with "identity")
     let (program_identity, _) = Pubkey::find_program_address(&[IDENTITY], &TEST_CALLBACK_PROGRAM);
+
+    println!("program_identity: {}", program_identity);
 
     // Construct account metas
     let accounts = vec![
