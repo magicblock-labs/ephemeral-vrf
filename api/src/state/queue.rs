@@ -21,6 +21,7 @@ pub struct QueueItem {
     pub callback_program_id: Pubkey,
     pub callback_accounts_meta: Vec<SerializableAccountMeta>,
     pub callback_args: Vec<u8>,
+    pub slot: u64,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
@@ -57,12 +58,14 @@ impl QueueAccount {
             // - callback_program_id: 32 bytes
             // - callback_accounts_meta: 4 bytes (length) + (34 bytes * count)
             // - callback_args: 4 bytes (length) + actual bytes
+            // - slot: 8 bytes
             size += 4
                 + item.callback_discriminator.len()
                 + 32
                 + 4
                 + (item.callback_accounts_meta.len() * 34)
                 + 4
+                + 8
                 + item.callback_args.len();
         }
 

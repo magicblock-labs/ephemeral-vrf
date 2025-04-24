@@ -88,7 +88,7 @@ pub fn provide_randomness(
         accounts: vec![
             AccountMeta::new(oracle_identity, true),
             AccountMeta::new_readonly(program_identity_pda().0, false),
-            AccountMeta::new(oracle_data_pda(&oracle_identity).0, false),
+            AccountMeta::new_readonly(oracle_data_pda(&oracle_identity).0, false),
             AccountMeta::new(oracle_queue, false),
             AccountMeta::new_readonly(callback_program_id, false),
             AccountMeta::new_readonly(system_program::ID, false),
@@ -135,5 +135,17 @@ pub fn undelegate_oracle_queue(signer: Pubkey, queue: Pubkey, index: u8) -> Inst
             AccountMeta::new_readonly(MAGIC_PROGRAM_ID, false),
         ],
         data: UndelegateOracleQueue { index }.to_bytes(),
+    }
+}
+
+pub fn close_oracle_queue(identity: Pubkey, index: u8) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(identity, false),
+            AccountMeta::new_readonly(oracle_data_pda(&identity).0, false),
+            AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
+        ],
+        data: CloseOracleQueue { index }.to_bytes(),
     }
 }

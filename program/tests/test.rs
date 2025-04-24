@@ -240,18 +240,6 @@ async fn run_test() {
             .minimum_balance(oracle_queue_account.data.len())
     );
 
-    // Submit remove oracle transaction.
-    let new_oracle = Pubkey::new_unique();
-    let ix = remove_oracle(authority_keypair.pubkey(), new_oracle);
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&authority_keypair.pubkey()),
-        &[&authority_keypair],
-        blockhash,
-    );
-    let res = banks.process_transaction(tx).await;
-    assert!(res.is_ok());
-
     // Delegate oracle queue to new vrf-macro
     let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address, 0);
     let tx = Transaction::new_signed_with_payer(
@@ -270,6 +258,42 @@ async fn run_test() {
         .unwrap()
         .unwrap();
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
+
+    // Initialize a new oracle queue
+    let ix = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
+    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Close oracle queue.
+    let ix = close_oracle_queue(new_oracle_keypair.pubkey(), 1);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&new_oracle_keypair.pubkey()),
+        &[&new_oracle_keypair],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Verify oracle queue was closed
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_pda(&new_oracle, 1).0)
+        .await
+        .unwrap();
+    assert!(oracle_queue_account.is_none());
+
+    // Submit remove oracle transaction.
+    let new_oracle = Pubkey::new_unique();
+    let ix = remove_oracle(authority_keypair.pubkey(), new_oracle);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&authority_keypair.pubkey()),
+        &[&authority_keypair],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
 
     // Verify oracle was removed.
     let oracles_info = banks.get_account(oracles_address).await.unwrap().unwrap();

@@ -89,6 +89,11 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
     oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
 
+    // Don't callback if the request is older than 1 hour and just remove the request
+    if Clock::get()?.slot - item.slot > 3 * 60 * 60 {
+        return Ok(());
+    }
+
     // Check that the oracle signer is not in the vrf-macro accounts
     if item
         .callback_accounts_meta
