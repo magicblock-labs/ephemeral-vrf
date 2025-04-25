@@ -8,8 +8,7 @@ use steel::*;
 /// Accounts:
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
-/// 1. `[]` program_identity_info - Used to allow the vrf-macro program
-///     to verify the identity of the oracle program
+/// 1. `[]` program_identity_info - Used to allow the vrf-macro program to verify the identity of the oracle program
 /// 1. `[]` oracle_data_info - Oracle data account associated with the signer
 /// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
 /// 3. `[]` callback_program_info - Program to call with the randomness
@@ -88,6 +87,11 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     )?;
     let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
     oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
+
+    // Don't callback if the request is older than 1 hour and just remove the request
+    if Clock::get()?.slot - item.slot > 3 * 60 * 60 {
+        return Ok(());
+    }
 
     // Check that the oracle signer is not in the vrf-macro accounts
     if item

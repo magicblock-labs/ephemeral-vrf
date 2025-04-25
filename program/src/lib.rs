@@ -1,4 +1,5 @@
 #![allow(unexpected_cfgs)]
+mod close_oracle_queue;
 mod delegate_oracle_queue;
 mod initialize;
 mod initialize_oracle_queue;
@@ -9,6 +10,7 @@ mod request_randomness;
 mod undelegate_oracle_queue;
 mod verify;
 
+use close_oracle_queue::*;
 use delegate_oracle_queue::*;
 use initialize::*;
 use initialize_oracle_queue::*;
@@ -43,6 +45,7 @@ pub fn process_instruction(
             process_undelegate_oracle_queue(accounts, data)?
         }
         EphemeralVrfInstruction::ProcessUndelegation => process_undelegation(accounts, &data[7..])?,
+        EphemeralVrfInstruction::CloseOracleQueue => process_close_oracle_queue(accounts, data)?,
     }
 
     Ok(())

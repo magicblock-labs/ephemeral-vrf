@@ -138,6 +138,7 @@ impl OracleClient {
                 }
             }
         }
+
         client
             .shutdown()
             .map_err(|_| anyhow!("Invalid state: failed to shutdown client"))?;

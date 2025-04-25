@@ -77,6 +77,13 @@ enum Commands {
         queue: String,
     },
 
+    /// Close an oracle queue
+    CloseOracleQueue {
+        /// Queue pubkey
+        #[arg(short, long)]
+        queue: String,
+    },
+
     /// Derive the current oracle pubkey for the given identity.
     DerivePubkey {},
 
@@ -162,6 +169,17 @@ async fn main() -> Result<()> {
                 queue, queue_struct.index
             );
             undelegate_oracle_queue(signer.pubkey(), queue, queue_struct.index)
+        }
+        Commands::CloseOracleQueue { queue } => {
+            let queue = Pubkey::from_str(queue)?;
+            let queue_account = rpc_client.get_account(&queue)?;
+            let queue_struct =
+                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+            println!(
+                "Closing oracle queue: {} with index: {}",
+                queue, queue_struct.index
+            );
+            close_oracle_queue(signer.pubkey(), queue_struct.index)
         }
         Commands::DerivePubkey {} => {
             let (_, oracle_vrf_pk) = generate_vrf_keypair(&signer);
