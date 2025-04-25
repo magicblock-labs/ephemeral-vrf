@@ -8,8 +8,7 @@ use steel::*;
 /// Accounts:
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
-/// 1. `[]` program_identity_info - Used to allow the vrf-macro program
-///     to verify the identity of the oracle program
+/// 1. `[]` program_identity_info - Used to allow the vrf-macro program to verify the identity of the oracle program
 /// 1. `[]` oracle_data_info - Oracle data account associated with the signer
 /// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
 /// 3. `[]` callback_program_info - Program to call with the randomness
