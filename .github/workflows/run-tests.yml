@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  solana_version: v2.1.16
+  solana_version: v2.1.21
 
 jobs:
   install:
@@ -31,7 +31,7 @@ jobs:
       - name: install rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: nightly
 
       - name: Cache rust
         uses: Swatinem/rust-cache@v2
