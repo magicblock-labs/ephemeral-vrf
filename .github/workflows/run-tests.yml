@@ -7,7 +7,7 @@ on:
 
 env:
   solana_version: v2.1.21
-  rust_version: stable
+  rust_version: 1.88.0
 
 jobs:
   install:
@@ -28,6 +28,7 @@ jobs:
           rustup update
 
       - name: install solana
+        if: steps.cache-solana.outputs.cache-hit != 'true'
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/${{ env.solana_version }}/install)"
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
@@ -50,6 +51,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        name: cache solana cli
+        id: cache-solana
+        with:
+          path: |
+            ~/.cache/solana/
+            ~/.local/share/solana/
+          key: solana-${{ runner.os }}-v0001-${{ env.solana_version }}
 
       - name: setup solana
         run: |
