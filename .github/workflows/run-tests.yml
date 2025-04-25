@@ -10,8 +10,10 @@ env:
   rust_version: stable
 
 jobs:
-  install:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      solana_path: ${{ steps.setup-solana.outputs.solana_path }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,15 +29,29 @@ jobs:
           rustup toolchain install ${{ env.rust_version }} --profile minimal
           rustup update
 
+      - uses: actions/cache@v4
+        name: cache solana cli
+        id: cache-solana
+        with:
+          path: |
+            ~/.cache/solana/
+            ~/.local/share/solana/
+          key: solana-${{ runner.os }}-v0001-${{ env.solana_version }}
+
       - name: install solana
         if: steps.cache-solana.outputs.cache-hit != 'true'
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/${{ env.solana_version }}/install)"
+
+      - name: Set Solana path
+        id: setup-solana
+        run: |
+          echo "solana_path=$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_OUTPUT
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           solana --version
 
   lint:
-    needs: install
+    needs: setup
     runs-on: ubuntu-latest
 
     steps:
@@ -46,7 +62,7 @@ jobs:
         run: cargo clippy -- --deny=warnings
 
   test:
-    needs: [install, lint]
+    needs: [setup, lint]
     runs-on: ubuntu-latest
 
     steps:
@@ -62,19 +78,19 @@ jobs:
 
       - name: setup solana
         run: |
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
           solana --version
           solana-keygen new --silent --no-bip39-passphrase
 
       - name: run build
         run: |
+          export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
           cargo build
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           cargo build-sbf --features test-sbf
 
       - name: run integration tests
         run: |
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
           npm install -g @magicblock-labs/bolt-cli
           cd program/tests/integration/use-randomness
           npm install
@@ -82,5 +98,5 @@ jobs:
 
       - name: run tests
         run: |
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
           cargo test-sbf --features test-sbf
