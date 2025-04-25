@@ -7,20 +7,13 @@ on:
 
 env:
   solana_version: v2.1.21
+  rust_version: stable
 
 jobs:
   install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
-        name: cache solana cli
-        id: cache-solana
-        with:
-          path: |
-            ~/.cache/solana/
-            ~/.local/share/solana/
-          key: solana-${{ runner.os }}-v0000-${{ env.solana_version }}
 
       - name: install essentials
         run: |
@@ -28,13 +21,11 @@ jobs:
           sudo apt-get install -y pkg-config build-essential libudev-dev
           npm install --global yarn
 
-      - name: install rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: nightly
-
-      - name: Cache rust
-        uses: Swatinem/rust-cache@v2
+      - name: Install Rust
+        shell: "bash"
+        run: |
+          rustup toolchain install ${{ env.rust_version }} --profile minimal
+          rustup update
 
       - name: install solana
         if: steps.cache-solana.outputs.cache-hit != 'true'

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  rust_version: 1.88.0
+  rust_version: stable
 
 jobs:
   install:
@@ -25,9 +25,6 @@ jobs:
       - name: Install Rust
         shell: "bash"
         run: rustup toolchain install ${{ env.rust_version }} --profile minimal
-
-      - name: Cache rust
-        uses: Swatinem/rust-cache@v2
 
   lint:
     needs: install
