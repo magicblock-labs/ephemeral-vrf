@@ -1,11 +1,19 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
+use async_trait::async_trait;
 use clap::Parser;
+use crossbeam_channel::Receiver;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
-use ephemeral_vrf_api::prelude::{provide_randomness, QueueAccount, QueueItem};
-use ephemeral_vrf_api::state::oracle_queue_pda;
-use log::info;
+use ephemeral_vrf_api::{
+    prelude::{provide_randomness, QueueAccount, QueueItem},
+    state::{oracle_queue_pda, AccountWithDiscriminator},
+    ID as PROGRAM_ID,
+};
+use futures_util::StreamExt;
+use helius_laserstream::{grpc::{subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterAccountsFilterMemcmp, SubscribeUpdate}, subscribe, AccountsFilterMemcmpOneof, AccountsFilterOneof, LaserstreamConfig, LaserstreamError};
 use solana_account_decoder::UiAccountEncoding;
+use solana_client::pubsub_client::PubsubProgramClientSubscription;
+use solana_client::rpc_response::{Response, RpcKeyedAccount};
 use solana_client::{
     pubsub_client::PubsubClient,
     rpc_client::RpcClient,
@@ -21,29 +29,26 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
-use std::str::FromStr;
-use std::sync::Arc;
+use std::pin::Pin;
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 
-/// Maximum number of retry attempts for failed transactions
-const MAX_RETRY_ATTEMPTS: u8 = 5;
-
-/// VRF Oracle client
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    #[arg(short, long, env = "VRF_ORACLE_IDENTITY")]
+    #[arg(long, env = "VRF_ORACLE_IDENTITY")]
     identity: Option<String>,
 
-    #[arg(short, long, env = "RPC_URL", default_value = "http://localhost:8899")]
+    #[arg(long, env = "RPC_URL", default_value = "http://localhost:8899")]
     rpc_url: String,
 
-    #[arg(
-        short,
-        long,
-        env = "WEBSOCKET_URL",
-        default_value = "ws://localhost:8900"
-    )]
+    #[arg(long, env = "WEBSOCKET_URL", default_value = "ws://localhost:8900")]
     websocket_url: String,
+
+    #[arg(long, env = "LASERSTREAM_API_KEY")]
+    laserstream_api_key: Option<String>,
+
+    #[arg(long, env = "LASERSTREAM_ENDPOINT")]
+    laserstream_endpoint: Option<String>,
 }
 
 struct OracleClient {
@@ -52,35 +57,69 @@ struct OracleClient {
     websocket_url: String,
     oracle_vrf_sk: Scalar,
     oracle_vrf_pk: RistrettoPoint,
+    laserstream_api_key: Option<String>,
+    laserstream_endpoint: Option<String>,
 }
 
-const DEFAULT_IDENTITY: &str =
-    "D4fURjsRpMj1vzfXqHgL94UeJyXR8DFyfyBDmbY647PnpuDzszvbRocMQu6Tzr1LUzBTQvXjarCxeb94kSTqvYx";
+#[async_trait]
+trait QueueUpdateSource: Send {
+    async fn next(&mut self) -> Option<(Pubkey, QueueAccount)>;
+}
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    env_logger::init();
-    let args = Args::parse();
+struct WebSocketSource {
+    subscription: Receiver<Response<RpcKeyedAccount>>,
+    #[allow(dead_code)]
+    client: PubsubProgramClientSubscription,
+}
 
-    let identity = args
-        .identity
-        .unwrap_or_else(|| DEFAULT_IDENTITY.to_string());
-    let keypair = Keypair::from_base58_string(&identity);
-    let oracle = OracleClient::new(keypair, args.rpc_url, args.websocket_url);
+impl Drop for WebSocketSource {
+    fn drop(&mut self) {
+        let _ = self.client.shutdown();
+    }
+}
 
-    loop {
-        match oracle.run().await {
-            Ok(_) => continue,
-            Err(e) => {
-                eprintln!("Oracle crashed with error: {:?}. Restarting...", e);
-                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+#[async_trait]
+impl QueueUpdateSource for WebSocketSource {
+    async fn next(&mut self) -> Option<(Pubkey, QueueAccount)> {
+        let update = self.subscription.recv().ok()?;
+        let data = update.value.account.data.decode()?;
+        if update.value.account.owner != PROGRAM_ID.to_string() {
+            return None;
+        }
+        let queue = QueueAccount::try_from_bytes_with_discriminator(&data).ok()?;
+        let pubkey = Pubkey::from_str(&update.value.pubkey).ok()?;
+        Some((pubkey, queue))
+    }
+}
+
+struct LaserstreamSource {
+    stream: Pin<Box<dyn futures_core::Stream<Item = Result<SubscribeUpdate, LaserstreamError>> + Send>>,
+}
+
+#[async_trait]
+impl QueueUpdateSource for LaserstreamSource {
+    async fn next(&mut self) -> Option<(Pubkey, QueueAccount)> {
+        while let Some(result) = self.stream.next().await {
+            let update = result.ok()?;
+            if let Some(UpdateOneof::Account(acc)) = update.update_oneof {
+                let acc = acc.account?;
+                let queue = QueueAccount::try_from_bytes_with_discriminator(&acc.data).ok()?;
+                let pubkey = Pubkey::new_from_array(acc.pubkey.try_into().ok()?);
+                return Some((pubkey, queue));
             }
         }
+        None
     }
 }
 
 impl OracleClient {
-    fn new(keypair: Keypair, rpc_url: String, websocket_url: String) -> Self {
+    fn new(
+        keypair: Keypair,
+        rpc_url: String,
+        websocket_url: String,
+        laserstream_endpoint: Option<String>,
+        laserstream_api_key: Option<String>,
+    ) -> Self {
         let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&keypair);
         Self {
             keypair,
@@ -88,70 +127,82 @@ impl OracleClient {
             websocket_url,
             oracle_vrf_sk,
             oracle_vrf_pk,
+            laserstream_api_key,
+            laserstream_endpoint,
         }
     }
 
-    async fn run(&self) -> Result<()> {
-        info!(
-            "Starting VRF Oracle with public key: {}",
-            self.keypair.pubkey()
-        );
-        info!("Connecting to RPC: {}", self.rpc_url);
-        info!("Connecting to WebSocket: {}", self.websocket_url);
-
-        let rpc_client = Arc::new(RpcClient::new_with_commitment(
-            &self.rpc_url,
-            CommitmentConfig::processed(),
-        ));
-
-        let filters = vec![RpcFilterType::Memcmp(Memcmp::new(
-            0,
-            MemcmpEncodedBytes::Bytes(vec![3, 0, 0, 0, 0, 0, 0, 0]),
-        ))];
-
-        let program_config = RpcProgramAccountsConfig {
-            account_config: RpcAccountInfoConfig {
-                commitment: Some(CommitmentConfig::processed()),
-                encoding: Some(UiAccountEncoding::Base64),
-                ..Default::default()
-            },
-            filters: Some(filters.clone()),
-            ..Default::default()
-        };
-
-        let (mut client, subscription) = PubsubClient::program_subscribe(
-            &self.websocket_url,
-            &ephemeral_vrf_api::ID,
-            Some(program_config),
-        )?;
-
-        fetch_and_process_program_accounts(self, &rpc_client, filters).await?;
-
-        while let Ok(update) = subscription.recv() {
-            if let Some(data) = update.value.account.data.decode() {
-                if update.value.account.owner == ephemeral_vrf_api::ID.to_string() {
-                    if let Ok(oracle_queue) = QueueAccount::try_from_bytes_with_discriminator(&data)
-                    {
-                        let pubkey = Pubkey::from_str(&update.value.pubkey).unwrap_or_default();
-                        process_oracle_queue(self, &rpc_client, &pubkey, &oracle_queue).await;
-                    }
-                }
-            }
+    async fn run(self: Arc<Self>) -> Result<()> {
+        let rpc_client = Arc::new(RpcClient::new_with_commitment(&self.rpc_url, CommitmentConfig::processed()));
+        fetch_and_process_program_accounts(&self, &rpc_client, queue_memcmp_filter()).await?;
+        let mut source = self.create_update_source().await?;
+        while let Some((pubkey, queue)) = source.next().await {
+            process_oracle_queue(&self, &rpc_client, &pubkey, &queue).await;
         }
-
-        client
-            .shutdown()
-            .map_err(|_| anyhow!("Invalid state: failed to shutdown client"))?;
         Ok(())
+    }
+
+    async fn create_update_source(self: &Arc<Self>) -> Result<Box<dyn QueueUpdateSource>> {
+        if let (Some(api_key), Some(endpoint)) = (&self.laserstream_api_key, &self.laserstream_endpoint) {
+            let config = LaserstreamConfig {
+                api_key: api_key.clone(),
+                endpoint: endpoint.parse()?,
+                ..Default::default()
+            };
+
+            let mut filters = HashMap::new();
+            filters.insert(
+                "oracle".to_string(),
+                SubscribeRequestFilterAccounts {
+                    owner: vec![PROGRAM_ID.to_string()],
+                    filters: vec![SubscribeRequestFilterAccountsFilter {
+                        filter: Some(AccountsFilterOneof::Memcmp(
+                            SubscribeRequestFilterAccountsFilterMemcmp {
+                                offset: 0,
+                                data: Some(AccountsFilterMemcmpOneof::Bytes(QueueAccount::discriminator().to_bytes().to_vec())),
+                            },
+                        )),
+                    }],
+                    ..Default::default()
+                },
+            );
+
+            let stream = subscribe(config, SubscribeRequest {
+                accounts: filters,
+                ..Default::default()
+            });
+            Ok(Box::new(LaserstreamSource {
+                stream: Box::pin(stream),
+            }))
+        } else {
+            let config = RpcProgramAccountsConfig {
+                account_config: RpcAccountInfoConfig {
+                    commitment: Some(CommitmentConfig::processed()),
+                    encoding: Some(UiAccountEncoding::Base64),
+                    ..Default::default()
+                },
+                filters: Some(queue_memcmp_filter()),
+                ..Default::default()
+            };
+            let (client, sub) = PubsubClient::program_subscribe(&self.websocket_url, &PROGRAM_ID, Some(config))?;
+            Ok(Box::new(WebSocketSource { client, subscription: sub }))
+        }
     }
 }
 
+fn queue_memcmp_filter() -> Vec<RpcFilterType> {
+    vec![RpcFilterType::Memcmp(Memcmp::new(
+        0,
+        MemcmpEncodedBytes::Bytes(QueueAccount::discriminator().to_bytes().to_vec()),
+    ))]
+}
+
 async fn fetch_and_process_program_accounts(
-    oracle_client: &OracleClient,
+    oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
     filters: Vec<RpcFilterType>,
 ) -> Result<()> {
-    let program_config = RpcProgramAccountsConfig {
+    let config = RpcProgramAccountsConfig {
         account_config: RpcAccountInfoConfig {
             commitment: Some(CommitmentConfig::processed()),
             encoding: Some(UiAccountEncoding::Base64),
@@ -161,52 +212,41 @@ async fn fetch_and_process_program_accounts(
         ..Default::default()
     };
 
-    let accounts =
-        rpc_client.get_program_accounts_with_config(&ephemeral_vrf_api::ID, program_config)?;
-
-    for (queue_pubkey, queue_account) in accounts {
-        if queue_account.owner == ephemeral_vrf_api::ID {
-            if let Ok(oracle_queue) =
-                QueueAccount::try_from_bytes_with_discriminator(&queue_account.data)
-            {
-                process_oracle_queue(oracle_client, rpc_client, &queue_pubkey, &oracle_queue).await;
+    let accounts = rpc_client.get_program_accounts_with_config(&PROGRAM_ID, config)?;
+    for (pubkey, acc) in accounts {
+        if acc.owner == PROGRAM_ID {
+            if let Ok(queue) = QueueAccount::try_from_bytes_with_discriminator(&acc.data) {
+                process_oracle_queue(oracle_client, rpc_client, &pubkey, &queue).await;
             }
         }
     }
-
     Ok(())
 }
 
 async fn process_oracle_queue(
-    oracle_client: &OracleClient,
+    oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
     queue: &Pubkey,
     oracle_queue: &QueueAccount,
 ) {
-    if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
-        if !oracle_queue.items.is_empty() {
-            info!(
-                "Processing queue: {}, with len: {}",
-                queue,
-                oracle_queue.items.len()
-            );
-        }
+    if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 != *queue {
+        return;
+    }
 
-        for (input_seed, item) in oracle_queue.items.iter() {
-            let mut attempts = 0;
-            while attempts < MAX_RETRY_ATTEMPTS {
-                match ProcessableItem(item.clone())
-                    .process_item(oracle_client, rpc_client, input_seed, queue)
-                    .await
-                {
-                    Ok(signature) => {
-                        println!("Transaction signature: {}", signature);
-                        break;
-                    }
-                    Err(e) => {
-                        attempts += 1;
-                        println!("Failed to send transaction: {:?}", e)
-                    }
+    for (seed, item) in oracle_queue.items.iter() {
+        let mut attempts = 0;
+        while attempts < MAX_ATTEMPTS {
+            match ProcessableItem(item.clone())
+                .process_item(oracle_client, rpc_client, seed, queue)
+                .await
+            {
+                Ok(sig) => {
+                    println!("Transaction: {}", sig);
+                    break;
+                }
+                Err(e) => {
+                    attempts += 1;
+                    println!("Retry {}/5 failed: {}", attempts, e);
                 }
             }
         }
@@ -224,8 +264,7 @@ impl ProcessableItem {
         vrf_input: &[u8; 32],
         queue: &Pubkey,
     ) -> Result<String> {
-        let (output, (commitment_base, commitment_hash, s)) =
-            compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
+        let (output, (commitment_base, commitment_hash, s)) = compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
 
         assert!(verify_vrf(
             oracle_client.oracle_vrf_pk,
@@ -245,20 +284,15 @@ impl ProcessableItem {
             PodScalar(s.to_bytes()),
         );
 
-        ix.accounts
-            .extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
-                pubkey: a.pubkey,
-                is_signer: a.is_signer,
-                is_writable: a.is_writable,
-            }));
+        ix.accounts.extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
+            pubkey: a.pubkey,
+            is_signer: a.is_signer,
+            is_writable: a.is_writable,
+        }));
 
-        let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
-        let blockhash = rpc_client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
-            .0;
-
+        let blockhash = rpc_client.get_latest_blockhash_with_commitment(CommitmentConfig::processed())?.0;
         let tx = Transaction::new_signed_with_payer(
-            &[compute_ix, ix],
+            &[ComputeBudgetInstruction::set_compute_unit_limit(200_000), ix],
             Some(&oracle_client.keypair.pubkey()),
             &[&oracle_client.keypair],
             blockhash,
@@ -267,3 +301,32 @@ impl ProcessableItem {
         Ok(rpc_client.send_and_confirm_transaction(&tx)?.to_string())
     }
 }
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    env_logger::init();
+    let args = Args::parse();
+
+    let identity = args.identity.unwrap_or_else(|| DEFAULT_IDENTITY.to_string());
+    let keypair = Keypair::from_base58_string(&identity);
+    let oracle = Arc::new(OracleClient::new(
+        keypair,
+        args.rpc_url,
+        args.websocket_url,
+        args.laserstream_endpoint,
+        args.laserstream_api_key,
+    ));
+
+    loop {
+        match Arc::clone(&oracle).run().await {
+            Ok(_) => continue,
+            Err(e) => {
+                eprintln!("Oracle crashed: {}", e);
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            }
+        }
+    }
+}
+
+const DEFAULT_IDENTITY: &str = "D4fURjsRpMj1vzfXqHgL94UeJyXR8DFyfyBDmbY647PnpuDzszvbRocMQu6Tzr1LUzBTQvXjarCxeb94kSTqvYx";
+const MAX_ATTEMPTS: u8 = 5;
