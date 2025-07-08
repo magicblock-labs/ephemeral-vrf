@@ -10,7 +10,14 @@ use ephemeral_vrf_api::{
     ID as PROGRAM_ID,
 };
 use futures_util::StreamExt;
-use helius_laserstream::{grpc::{subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterAccountsFilterMemcmp, SubscribeUpdate}, subscribe, AccountsFilterMemcmpOneof, AccountsFilterOneof, LaserstreamConfig, LaserstreamError};
+use helius_laserstream::{
+    grpc::{
+        subscribe_update::UpdateOneof, SubscribeRequest, SubscribeRequestFilterAccounts,
+        SubscribeRequestFilterAccountsFilter, SubscribeRequestFilterAccountsFilterMemcmp,
+        SubscribeUpdate,
+    },
+    subscribe, AccountsFilterMemcmpOneof, AccountsFilterOneof, LaserstreamConfig, LaserstreamError,
+};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::pubsub_client::PubsubProgramClientSubscription;
 use solana_client::rpc_response::{Response, RpcKeyedAccount};
@@ -93,7 +100,8 @@ impl QueueUpdateSource for WebSocketSource {
 }
 
 struct LaserstreamSource {
-    stream: Pin<Box<dyn futures_core::Stream<Item = Result<SubscribeUpdate, LaserstreamError>> + Send>>,
+    stream:
+        Pin<Box<dyn futures_core::Stream<Item = Result<SubscribeUpdate, LaserstreamError>> + Send>>,
 }
 
 #[async_trait]
@@ -133,7 +141,10 @@ impl OracleClient {
     }
 
     async fn run(self: Arc<Self>) -> Result<()> {
-        let rpc_client = Arc::new(RpcClient::new_with_commitment(&self.rpc_url, CommitmentConfig::processed()));
+        let rpc_client = Arc::new(RpcClient::new_with_commitment(
+            &self.rpc_url,
+            CommitmentConfig::processed(),
+        ));
         fetch_and_process_program_accounts(&self, &rpc_client, queue_memcmp_filter()).await?;
         let mut source = self.create_update_source().await?;
         while let Some((pubkey, queue)) = source.next().await {
@@ -143,7 +154,9 @@ impl OracleClient {
     }
 
     async fn create_update_source(self: &Arc<Self>) -> Result<Box<dyn QueueUpdateSource>> {
-        if let (Some(api_key), Some(endpoint)) = (&self.laserstream_api_key, &self.laserstream_endpoint) {
+        if let (Some(api_key), Some(endpoint)) =
+            (&self.laserstream_api_key, &self.laserstream_endpoint)
+        {
             let config = LaserstreamConfig {
                 api_key: api_key.clone(),
                 endpoint: endpoint.parse()?,
@@ -159,7 +172,9 @@ impl OracleClient {
                         filter: Some(AccountsFilterOneof::Memcmp(
                             SubscribeRequestFilterAccountsFilterMemcmp {
                                 offset: 0,
-                                data: Some(AccountsFilterMemcmpOneof::Bytes(QueueAccount::discriminator().to_bytes().to_vec())),
+                                data: Some(AccountsFilterMemcmpOneof::Bytes(
+                                    QueueAccount::discriminator().to_bytes().to_vec(),
+                                )),
                             },
                         )),
                     }],
@@ -167,10 +182,13 @@ impl OracleClient {
                 },
             );
 
-            let stream = subscribe(config, SubscribeRequest {
-                accounts: filters,
-                ..Default::default()
-            });
+            let stream = subscribe(
+                config,
+                SubscribeRequest {
+                    accounts: filters,
+                    ..Default::default()
+                },
+            );
             Ok(Box::new(LaserstreamSource {
                 stream: Box::pin(stream),
             }))
@@ -184,8 +202,12 @@ impl OracleClient {
                 filters: Some(queue_memcmp_filter()),
                 ..Default::default()
             };
-            let (client, sub) = PubsubClient::program_subscribe(&self.websocket_url, &PROGRAM_ID, Some(config))?;
-            Ok(Box::new(WebSocketSource { client, subscription: sub }))
+            let (client, sub) =
+                PubsubClient::program_subscribe(&self.websocket_url, &PROGRAM_ID, Some(config))?;
+            Ok(Box::new(WebSocketSource {
+                client,
+                subscription: sub,
+            }))
         }
     }
 }
@@ -264,7 +286,8 @@ impl ProcessableItem {
         vrf_input: &[u8; 32],
         queue: &Pubkey,
     ) -> Result<String> {
-        let (output, (commitment_base, commitment_hash, s)) = compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
+        let (output, (commitment_base, commitment_hash, s)) =
+            compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
 
         assert!(verify_vrf(
             oracle_client.oracle_vrf_pk,
@@ -284,15 +307,21 @@ impl ProcessableItem {
             PodScalar(s.to_bytes()),
         );
 
-        ix.accounts.extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
-            pubkey: a.pubkey,
-            is_signer: a.is_signer,
-            is_writable: a.is_writable,
-        }));
+        ix.accounts
+            .extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
+                pubkey: a.pubkey,
+                is_signer: a.is_signer,
+                is_writable: a.is_writable,
+            }));
 
-        let blockhash = rpc_client.get_latest_blockhash_with_commitment(CommitmentConfig::processed())?.0;
+        let blockhash = rpc_client
+            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
+            .0;
         let tx = Transaction::new_signed_with_payer(
-            &[ComputeBudgetInstruction::set_compute_unit_limit(200_000), ix],
+            &[
+                ComputeBudgetInstruction::set_compute_unit_limit(200_000),
+                ix,
+            ],
             Some(&oracle_client.keypair.pubkey()),
             &[&oracle_client.keypair],
             blockhash,
@@ -307,7 +336,9 @@ async fn main() -> Result<()> {
     env_logger::init();
     let args = Args::parse();
 
-    let identity = args.identity.unwrap_or_else(|| DEFAULT_IDENTITY.to_string());
+    let identity = args
+        .identity
+        .unwrap_or_else(|| DEFAULT_IDENTITY.to_string());
     let keypair = Keypair::from_base58_string(&identity);
     let oracle = Arc::new(OracleClient::new(
         keypair,
@@ -328,5 +359,6 @@ async fn main() -> Result<()> {
     }
 }
 
-const DEFAULT_IDENTITY: &str = "D4fURjsRpMj1vzfXqHgL94UeJyXR8DFyfyBDmbY647PnpuDzszvbRocMQu6Tzr1LUzBTQvXjarCxeb94kSTqvYx";
+const DEFAULT_IDENTITY: &str =
+    "D4fURjsRpMj1vzfXqHgL94UeJyXR8DFyfyBDmbY647PnpuDzszvbRocMQu6Tzr1LUzBTQvXjarCxeb94kSTqvYx";
 const MAX_ATTEMPTS: u8 = 5;
