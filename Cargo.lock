@@ -1704,6 +1704,7 @@ dependencies = [
 name = "ephemeral-vrf-api"
 version = "0.1.2"
 dependencies = [
+ "bincode",
  "borsh 1.5.7",
  "bytemuck",
  "ephemeral-rollups-sdk",
