@@ -7,7 +7,7 @@ fn main() {
     let keypair = Keypair::new();
     let (sk, pk) = generate_vrf_keypair(&keypair);
     let bs58_pk = Pubkey::new_from_array(pk.compress().to_bytes());
-    print!("Generated PK: {:?}", bs58_pk);
+    print!("Generated PK: {bs58_pk:?}");
 
     let blockhash = b"blockhash";
     let seed = b"test-seed";
@@ -22,5 +22,5 @@ fn main() {
         output,
         (commitment_base_compressed, commitment_hash_compressed, s),
     );
-    print!("\nVRF proof is valid: {:?}", is_valid);
+    print!("\nVRF proof is valid: {is_valid:?}");
 }

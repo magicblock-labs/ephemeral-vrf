@@ -29,7 +29,7 @@ pub fn process_instruction(
     data: &[u8],
 ) -> ProgramResult {
     let (ix, data) = parse_instruction(&ephemeral_vrf_api::ID, program_id, data)?;
-    log(format!("Instruction: {:?}", ix));
+    log(format!("Instruction: {ix:?}"));
     match ix {
         EphemeralVrfInstruction::Initialize => process_initialize(accounts, data)?,
         EphemeralVrfInstruction::ModifyOracle => process_modify_oracles(accounts, data)?,
