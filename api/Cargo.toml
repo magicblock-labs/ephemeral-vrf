@@ -18,8 +18,9 @@ unit_test_config = []
 [dependencies]
 bytemuck.workspace = true
 ephemeral-rollups-sdk.workspace = true
-num_enum.workspace = true
 solana-program.workspace = true
 steel.workspace = true
 solana-curve25519.workspace = true
 borsh.workspace = true
+bincode.workspace = true
+num_enum.workspace = true
