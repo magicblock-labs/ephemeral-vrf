@@ -66,12 +66,12 @@ pub async fn process_oracle_queue(
                     .await
                 {
                     Ok(signature) => {
-                        println!("Transaction signature: {}", signature);
+                        println!("Transaction signature: {signature}");
                         break;
                     }
                     Err(e) => {
                         attempts += 1;
-                        println!("Failed to send transaction: {:?}", e)
+                        println!("Failed to send transaction: {e:?}")
                     }
                 }
             }

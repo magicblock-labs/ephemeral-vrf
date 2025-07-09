@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
         match Arc::clone(&oracle).run().await {
             Ok(_) => continue,
             Err(e) => {
-                eprintln!("Oracle crashed: {}", e);
+                eprintln!("Oracle crashed: {e}");
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
             }
         }

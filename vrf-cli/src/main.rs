@@ -125,20 +125,17 @@ async fn main() -> Result<()> {
         } => {
             let identity = Pubkey::from_str(identity)?;
             let oracle_pubkey_bytes = Pubkey::from_str(oracle_pubkey)?.to_bytes();
-            println!("Adding oracle with identity: {}", identity);
+            println!("Adding oracle with identity: {identity}");
             add_oracle(signer.pubkey(), identity, oracle_pubkey_bytes)
         }
         Commands::RemoveOracle { identity } => {
             let identity = Pubkey::from_str(identity)?;
-            println!("Removing oracle with identity: {}", identity);
+            println!("Removing oracle with identity: {identity}");
             remove_oracle(signer.pubkey(), identity)
         }
         Commands::InitializeOracleQueue { identity, index } => {
             let identity = Pubkey::from_str(identity)?;
-            println!(
-                "Initializing oracle queue for identity: {} with index: {}",
-                identity, index
-            );
+            println!("Initializing oracle queue for identity: {identity} with index: {index}");
             initialize_oracle_queue(signer.pubkey(), identity, *index)
         }
         Commands::DelegateOracleQueue { queue } => {
@@ -157,7 +154,7 @@ async fn main() -> Result<()> {
             let queue_account = match rpc_client.get_account(&queue) {
                 Ok(acc) => acc,
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     rpc_client.request_airdrop(&queue, 1)?;
                     exit(1);
                 }
@@ -216,7 +213,7 @@ async fn main() -> Result<()> {
     );
 
     let signature = rpc_client.send_and_confirm_transaction(&transaction)?;
-    println!("Transaction signature: {}", signature);
+    println!("Transaction signature: {signature}");
 
     Ok(())
 }

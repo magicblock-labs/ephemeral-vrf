@@ -84,10 +84,7 @@ impl OracleClient {
                     warn!("Update source stream ended. Attempting to reconnect...");
                 }
                 Err(err) => {
-                    error!(
-                        "Failed to create update source: {:?}. Retrying in 5 seconds...",
-                        err
-                    );
+                    error!("Failed to create update source: {err:?}. Retrying in 5 seconds...");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                 }
             }
