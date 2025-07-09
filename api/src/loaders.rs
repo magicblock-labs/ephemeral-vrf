@@ -1,8 +1,8 @@
 use solana_program::account_info::AccountInfo;
-use solana_program::{bpf_loader_upgradeable, msg};
 use solana_program::bpf_loader_upgradeable::UpgradeableLoaderState;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
+use solana_program::{bpf_loader_upgradeable, msg};
 
 /// Get the program upgrade authority for a given program
 pub fn load_program_upgrade_authority(

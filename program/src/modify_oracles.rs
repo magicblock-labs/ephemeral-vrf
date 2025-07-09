@@ -1,8 +1,8 @@
+use ephemeral_vrf_api::loaders::load_program_upgrade_authority;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 use ephemeral_vrf_api::ID;
-use ephemeral_vrf_api::loaders::load_program_upgrade_authority;
+use steel::*;
 
 /// Process the modification of oracles (add or remove)
 ///
@@ -34,7 +34,8 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     let args = ModifyOracle::try_from_bytes(data)?;
 
     // Load accounts.
-    let [signer_info, oracles_info, oracle_data_info, vrf_program_data, system_program] = accounts else {
+    let [signer_info, oracles_info, oracle_data_info, vrf_program_data, system_program] = accounts
+    else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     signer_info.is_signer()?;
