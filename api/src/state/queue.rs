@@ -1,7 +1,7 @@
 use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator};
 use crate::{impl_to_bytes_with_discriminator_borsh, impl_try_from_bytes_with_discriminator_borsh};
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::pubkey::Pubkey; // or `use steel::*;` if that's where Pubkey is imported
+use solana_program::pubkey::Pubkey;
 use std::collections::HashMap;
 
 /// The account now holds a HashMap keyed by [u8; 32].
