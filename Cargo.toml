@@ -20,6 +20,7 @@ ephemeral-vrf-sdk-vrf-macro = { path = "sdk/vrf-macro", version = "0.1.2" }
 ephemeral-rollups-sdk = "0.2.4"
 borsh = ">=0.10.1"
 bytemuck = "1.14"
+rkyv = { version = "0.7.42", features = ["validation"] }
 num_enum = "0.7"
 solana-program = ">=1.18.26"
 solana-curve25519 = "=2.1"

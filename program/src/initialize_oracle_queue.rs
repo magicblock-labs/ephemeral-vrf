@@ -83,8 +83,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     )?;
 
     // Serialize the QueueAccount to bytes
-    let mut oracle_queue_bytes = vec![];
-    oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+    let oracle_queue_bytes = oracle_queue.to_bytes_with_discriminator()?;
 
     {
         let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;

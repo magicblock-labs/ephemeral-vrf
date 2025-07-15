@@ -91,8 +91,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     oracle_queue.remove_item(index);
 
     // Serialize the updated queue
-    let mut oracle_queue_bytes = vec![];
-    oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+    let oracle_queue_bytes = oracle_queue.to_bytes_with_discriminator()?;
 
     // Update the queue data
     let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
@@ -111,20 +110,20 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     if item
         .callback_accounts_meta
         .iter()
-        .any(|acc| acc.pubkey == *oracle_info.key)
+        .any(|acc| acc.pubkey.equals(oracle_info.key))
     {
         return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
     }
 
     // Invoke vrf-macro with randomness
-    callback_program_info.has_address(&item.callback_program_id)?;
+    callback_program_info.has_address(&item.callback_program_id.pubkey())?;
     let mut accounts_metas = vec![AccountMeta {
         pubkey: *program_identity_info.key,
         is_signer: true,
         is_writable: false,
     }];
     accounts_metas.extend(item.callback_accounts_meta.iter().map(|acc| AccountMeta {
-        pubkey: acc.pubkey,
+        pubkey: acc.pubkey.pubkey(),
         is_signer: acc.is_signer,
         is_writable: acc.is_writable,
     }));
@@ -137,7 +136,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     callback_data.extend_from_slice(&item.callback_args);
 
     let ix = Instruction {
-        program_id: item.callback_program_id,
+        program_id: item.callback_program_id.pubkey(),
         accounts: accounts_metas,
         data: callback_data,
     };

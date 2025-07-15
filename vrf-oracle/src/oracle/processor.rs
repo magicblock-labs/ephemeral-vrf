@@ -107,7 +107,7 @@ impl ProcessableItem {
         let mut ix = provide_randomness(
             oracle_client.keypair.pubkey(),
             *queue,
-            self.0.callback_program_id,
+            self.0.callback_program_id.pubkey(),
             *vrf_input,
             PodRistrettoPoint(output.to_bytes()),
             PodRistrettoPoint(commitment_base.to_bytes()),
@@ -117,7 +117,7 @@ impl ProcessableItem {
 
         ix.accounts
             .extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
-                pubkey: a.pubkey,
+                pubkey: a.pubkey.pubkey(),
                 is_signer: a.is_signer,
                 is_writable: a.is_writable,
             }));

@@ -1,6 +1,7 @@
-use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator};
-use crate::{impl_to_bytes_with_discriminator_borsh, impl_try_from_bytes_with_discriminator_borsh};
+use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator, RkyvPubkey};
+use crate::{impl_to_bytes_with_discriminator_rkyv, impl_try_from_bytes_with_discriminator_rkyv};
 use borsh::{BorshDeserialize, BorshSerialize};
+use rkyv::{Archive, Deserialize, Serialize};
 use solana_program::pubkey::Pubkey;
 
 /// The maximum number of accounts allowed in a QueueItem
@@ -11,7 +12,8 @@ pub const MAX_ARGS_SIZE: usize = 8;
 pub const MAX_QUEUE_ITEMS: usize = 5;
 
 /// Fixed-size QueueAccount with preallocated space
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(Archive, Serialize, Deserialize, Debug)]
+#[archive(compare(PartialEq), check_bytes)]
 pub struct QueueAccount {
     /// The index of the queue.
     pub index: u8,
@@ -22,19 +24,21 @@ pub struct QueueAccount {
 }
 
 /// Fixed-size QueueItem with size constraints
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Default, Clone)]
+#[archive(compare(PartialEq), check_bytes)]
 pub struct QueueItem {
     pub id: [u8; 32],
     pub callback_discriminator: Vec<u8>,
-    pub callback_program_id: Pubkey,
+    pub callback_program_id: RkyvPubkey,
     pub callback_accounts_meta: Vec<SerializableAccountMeta>,
     pub callback_args: Vec<u8>,
     pub slot: u64,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, Default, Clone, BorshSerialize, BorshDeserialize)]
+#[archive(compare(PartialEq), check_bytes)]
 pub struct SerializableAccountMeta {
-    pub pubkey: Pubkey,
+    pub pubkey: RkyvPubkey,
     pub is_signer: bool,
     pub is_writable: bool,
 }
@@ -113,13 +117,16 @@ impl QueueAccount {
         //   For each QueueItem (when Some):
         //     - id: 32 bytes
         //     - callback_discriminator: 4 bytes (Vec length) + 8 bytes (typical discriminator size)
-        //     - callback_program_id: 32 bytes
+        //     - callback_program_id: 32 bytes (RkyvPubkey)
         //     - callback_accounts_meta: 4 bytes (Vec length) + MAX_ACCOUNTS * (32 + 1 + 1) = 4 + MAX_ACCOUNTS * 34 bytes
         //     - callback_args: 4 bytes (Vec length) + MAX_ARGS_SIZE bytes (max content)
         //     - slot: 8 bytes
 
+        // Rkyv serialization adds some overhead for alignment and metadata
+        // We'll add a 20% buffer to account for this
         let queue_item_size = 32 + (4 + 8) + 32 + (4 + (MAX_ACCOUNTS * 34)) + (4 + MAX_ARGS_SIZE) + 8;
-        let total_size = 8 + 1 + 1 + (MAX_QUEUE_ITEMS * (1 + queue_item_size)); // 1 byte for Option discriminant
+        let rkyv_overhead = (queue_item_size as f32 * 0.2) as usize;
+        let total_size = 8 + 1 + 1 + (MAX_QUEUE_ITEMS * (1 + queue_item_size + rkyv_overhead)); // 1 byte for Option discriminant
 
         total_size
     }
@@ -137,10 +144,10 @@ impl Default for QueueAccount {
     }
 }
 
-// -- Borsh helper macros for (de)serialization with a discriminator --
+// -- Rkyv helper macros for (de)serialization with a discriminator --
 
-impl_to_bytes_with_discriminator_borsh!(QueueAccount);
-impl_try_from_bytes_with_discriminator_borsh!(QueueAccount);
+impl_to_bytes_with_discriminator_rkyv!(QueueAccount);
+impl_try_from_bytes_with_discriminator_rkyv!(QueueAccount);
 
 #[cfg(test)]
 mod tests {
@@ -155,5 +162,71 @@ mod tests {
         for item in queue.items.iter() {
             assert!(item.is_none());
         }
+    }
+
+    #[test]
+    fn test_queue_account_serialization() {
+        // Create a queue with one item
+        let mut queue = QueueAccount::default();
+        let item = QueueItem {
+            id: [1; 32],
+            callback_discriminator: vec![1, 2, 3, 4],
+            callback_program_id: RkyvPubkey::new(Pubkey::new_unique()),
+            callback_accounts_meta: vec![
+                SerializableAccountMeta {
+                    pubkey: RkyvPubkey::new(Pubkey::new_unique()),
+                    is_signer: true,
+                    is_writable: true,
+                }
+            ],
+            callback_args: vec![5, 6, 7, 8],
+            slot: 123,
+        };
+        queue.add_item(item).unwrap();
+
+        // Serialize the queue with discriminator
+        let serialized = queue.to_bytes_with_discriminator().unwrap();
+
+        // Deserialize the queue
+        let deserialized = QueueAccount::try_from_bytes_with_discriminator(&serialized).unwrap();
+
+        // Verify the deserialized queue matches the original
+        assert_eq!(deserialized.index, queue.index);
+        assert_eq!(deserialized.item_count, queue.item_count);
+
+        // Check the item was correctly deserialized
+        let original_item = queue.items[0].as_ref().unwrap();
+        let deserialized_item = deserialized.items[0].as_ref().unwrap();
+
+        assert_eq!(deserialized_item.id, original_item.id);
+        assert_eq!(deserialized_item.callback_discriminator, original_item.callback_discriminator);
+        assert_eq!(deserialized_item.callback_program_id.bytes, original_item.callback_program_id.bytes);
+        assert_eq!(deserialized_item.callback_accounts_meta.len(), original_item.callback_accounts_meta.len());
+        assert_eq!(deserialized_item.callback_accounts_meta[0].pubkey.bytes, original_item.callback_accounts_meta[0].pubkey.bytes);
+        assert_eq!(deserialized_item.callback_accounts_meta[0].is_signer, original_item.callback_accounts_meta[0].is_signer);
+        assert_eq!(deserialized_item.callback_accounts_meta[0].is_writable, original_item.callback_accounts_meta[0].is_writable);
+        assert_eq!(deserialized_item.callback_args, original_item.callback_args);
+        assert_eq!(deserialized_item.slot, original_item.slot);
+    }
+
+    #[test]
+    fn test_serializable_account_meta_borsh_serialization() {
+        // Create a SerializableAccountMeta
+        let meta = SerializableAccountMeta {
+            pubkey: RkyvPubkey::new(Pubkey::new_unique()),
+            is_signer: true,
+            is_writable: false,
+        };
+
+        // Serialize with Borsh
+        let serialized = borsh::to_vec(&meta).unwrap();
+
+        // Deserialize with Borsh
+        let deserialized = borsh::from_slice::<SerializableAccountMeta>(&serialized).unwrap();
+
+        // Verify the deserialized meta matches the original
+        assert_eq!(deserialized.pubkey.bytes, meta.pubkey.bytes);
+        assert_eq!(deserialized.is_signer, meta.is_signer);
+        assert_eq!(deserialized.is_writable, meta.is_writable);
     }
 }

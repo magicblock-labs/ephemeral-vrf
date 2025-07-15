@@ -82,7 +82,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let item = QueueItem {
         id: combined_hash.to_bytes(),
         callback_discriminator: args.callback_discriminator,
-        callback_program_id: args.callback_program_id,
+        callback_program_id: args.callback_program_id.into(),
         callback_accounts_meta: args.callback_accounts_metas,
         callback_args: args.callback_args,
         slot,
@@ -93,8 +93,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     {
         let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-        let mut oracle_queue_bytes = vec![];
-        oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+        let oracle_queue_bytes = oracle_queue.to_bytes_with_discriminator()?;
 
         // Only copy the serialized data, which may be smaller than the allocated space
         oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
