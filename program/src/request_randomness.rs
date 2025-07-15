@@ -99,7 +99,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
 
         // Log the sizes for debugging
-        solana_program::msg!("Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
+        solana_program::msg!("Request RND: Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
     }
 
     Ok(())

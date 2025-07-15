@@ -67,7 +67,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     oracle_queue.index = args.index;
 
     // Calculate the fixed size of the account
-    let account_size = oracle_queue.size_with_discriminator();
+    let account_size = QueueAccount::size_with_discriminator();
 
     msg!("Account size: {}", account_size);
 
@@ -91,7 +91,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
 
         // Log the sizes for debugging
-        msg!("Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
+        msg!("INIT: Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
     }
 
     Ok(())

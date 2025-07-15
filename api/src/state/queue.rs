@@ -2,14 +2,13 @@ use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator, RkyvPubkey}
 use crate::{impl_to_bytes_with_discriminator_rkyv, impl_try_from_bytes_with_discriminator_rkyv};
 use borsh::{BorshDeserialize, BorshSerialize};
 use rkyv::{Archive, Deserialize, Serialize};
-use solana_program::pubkey::Pubkey;
 
 /// The maximum number of accounts allowed in a QueueItem
 pub const MAX_ACCOUNTS: usize = 5;
 /// The maximum size of callback args in bytes
 pub const MAX_ARGS_SIZE: usize = 8;
 /// The maximum number of items in the queue
-pub const MAX_QUEUE_ITEMS: usize = 5;
+pub const MAX_QUEUE_ITEMS: usize = 15;
 
 /// Fixed-size QueueAccount with preallocated space
 #[derive(Archive, Serialize, Deserialize, Debug)]
@@ -107,9 +106,10 @@ impl QueueAccount {
         self.item_count == 0
     }
 
-    /// Calculate the fixed size of this account, including the 8-byte discriminator.
-    pub fn size_with_discriminator(&self) -> usize {
+    /// Calculate the fixed size of this account, including the 8-byte discriminator and 8-byte size field.
+    pub fn size_with_discriminator() -> usize {
         // 8 bytes for the account discriminator
+        // 8 bytes for the size field
         // 1 byte for the index
         // 1 byte for the item_count
         // For each queue item (MAX_QUEUE_ITEMS):
@@ -126,7 +126,7 @@ impl QueueAccount {
         // We'll add a 20% buffer to account for this
         let queue_item_size = 32 + (4 + 8) + 32 + (4 + (MAX_ACCOUNTS * 34)) + (4 + MAX_ARGS_SIZE) + 8;
         let rkyv_overhead = (queue_item_size as f32 * 0.2) as usize;
-        let total_size = 8 + 1 + 1 + (MAX_QUEUE_ITEMS * (1 + queue_item_size + rkyv_overhead)); // 1 byte for Option discriminant
+        let total_size = 8 + 8 + 1 + 1 + (MAX_QUEUE_ITEMS * (1 + queue_item_size + rkyv_overhead)); // 1 byte for Option discriminant
 
         total_size
     }

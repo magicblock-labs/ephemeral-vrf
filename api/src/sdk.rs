@@ -98,7 +98,6 @@ pub fn provide_randomness(
             AccountMeta::new_readonly(oracle_data_pda(&oracle_identity).0, false),
             AccountMeta::new(oracle_queue, false),
             AccountMeta::new_readonly(callback_program_id, false),
-            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: ProvideRandomness {
             oracle_identity,

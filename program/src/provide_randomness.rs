@@ -9,10 +9,9 @@ use steel::*;
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
 /// 1. `[]` program_identity_info - Used to allow the vrf-macro program to verify the identity of the oracle program
-/// 1. `[]` oracle_data_info - Oracle data account associated with the signer
-/// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
-/// 3. `[]` callback_program_info - Program to call with the randomness
-/// 4. `[]` system_program_info - System program for resizing accounts
+/// 2. `[]` oracle_data_info - Oracle data account associated with the signer
+/// 3. `[writable]` oracle_queue_info - Queue storing randomness requests
+/// 4. `[]` callback_program_info - Program to call with the randomness
 /// 5. `[varies]` remaining_accounts - Accounts needed for the vrf-macro
 ///
 /// Requirements:
@@ -32,9 +31,9 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Load accounts
     let (
-        [oracle_info, program_identity_info, oracle_data_info, oracle_queue_info, callback_program_info, system_program_info],
+        [oracle_info, program_identity_info, oracle_data_info, oracle_queue_info, callback_program_info],
         remaining_accounts,
-    ) = accounts.split_at(6)
+    ) = accounts.split_at(5)
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -99,7 +98,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
 
     // Log the sizes for debugging
-    solana_program::msg!("Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
+    solana_program::msg!("Provide RND: Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
 
     // Don't callback if the request is older than 1 hour and just remove the request
     if Clock::get()?.slot - item.slot > 3 * 60 * 60 {

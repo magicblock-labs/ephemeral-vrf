@@ -91,11 +91,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     let oracles_bytes = oracles.to_bytes_with_discriminator()?;
     let mut oracles_data = oracles_info.try_borrow_mut_data()?;
 
-    // Only copy the serialized data, which may be smaller than the allocated space
-    oracles_data[..oracles_bytes.len()].copy_from_slice(&oracles_bytes);
-
-    // Log the sizes for debugging
-    solana_program::msg!("Serialized size: {}, Allocated size: {}", oracles_bytes.len(), oracles_data.len());
+    oracles_data.copy_from_slice(&oracles_bytes);
 
     Ok(())
 }
