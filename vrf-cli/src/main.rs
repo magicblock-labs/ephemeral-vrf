@@ -195,7 +195,7 @@ async fn main() -> Result<()> {
                     println!(
                         "Queue address: {}, items: {}, index: {}, delegated: {}",
                         queue,
-                        queue_struct.items.len(),
+                        queue_struct.item_count,
                         queue_struct.index,
                         !account.owner.eq(&ephemeral_vrf_api::ID)
                     );

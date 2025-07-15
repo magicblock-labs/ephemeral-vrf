@@ -68,29 +68,39 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let mut oracle_queue =
         QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_info.try_borrow_data()?)?;
 
-    oracle_queue.items.insert(
-        combined_hash.to_bytes(),
-        QueueItem {
-            callback_discriminator: args.callback_discriminator,
-            callback_program_id: args.callback_program_id,
-            callback_accounts_meta: args.callback_accounts_metas,
-            callback_args: args.callback_args,
-            slot,
-        },
-    );
+    // Check if the callback args are within the size limit
+    if args.callback_args.len() > MAX_ARGS_SIZE {
+        return Err(ProgramError::InvalidArgument);
+    }
 
-    resize_pda(
-        signer_info,
-        oracle_queue_info,
-        system_program_info,
-        oracle_queue.size_with_discriminator(),
-    )?;
+    // Check if the number of accounts is within the limit
+    if args.callback_accounts_metas.len() > MAX_ACCOUNTS {
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    // Create the QueueItem
+    let item = QueueItem {
+        id: combined_hash.to_bytes(),
+        callback_discriminator: args.callback_discriminator,
+        callback_program_id: args.callback_program_id,
+        callback_accounts_meta: args.callback_accounts_metas,
+        callback_args: args.callback_args,
+        slot,
+    };
+
+    // Add the item to the queue
+    oracle_queue.add_item(item)?;
 
     {
         let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
         let mut oracle_queue_bytes = vec![];
         oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
-        oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
+
+        // Only copy the serialized data, which may be smaller than the allocated space
+        oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
+
+        // Log the sizes for debugging
+        solana_program::msg!("Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
     }
 
     Ok(())

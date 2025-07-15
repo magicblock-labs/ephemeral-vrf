@@ -1,3 +1,4 @@
+use solana_program::msg;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
@@ -61,26 +62,37 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         return Err(Unauthorized.into());
     }
 
-    let mut oracle_queue_bytes = vec![];
-    let oracle_queue = QueueAccount {
-        index: args.index,
-        ..Default::default()
-    };
-    oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+    // Create a default QueueAccount with the specified index
+    let mut oracle_queue = QueueAccount::default();
+    oracle_queue.index = args.index;
 
+    // Calculate the fixed size of the account
+    let account_size = oracle_queue.size_with_discriminator();
+
+    msg!("Account size: {}", account_size);
+
+    // Create the PDA with the fixed size
     create_pda(
         oracle_queue_info,
         &ephemeral_vrf_api::ID,
-        oracle_queue_bytes.len(),
+        account_size,
         &[QUEUE, oracle_info.key.to_bytes().as_ref(), &[args.index]],
         oracle_queue_pda(oracle_info.key, args.index).1,
         system_program,
         signer_info,
     )?;
 
+    // Serialize the QueueAccount to bytes
+    let mut oracle_queue_bytes = vec![];
+    oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+
     {
         let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-        oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
+        // Only copy the serialized data, which may be smaller than the allocated space
+        oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
+
+        // Log the sizes for debugging
+        msg!("Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
     }
 
     Ok(())

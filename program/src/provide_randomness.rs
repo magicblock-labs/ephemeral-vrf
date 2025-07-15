@@ -65,28 +65,42 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         return Err(EphemeralVrfError::InvalidProof.into());
     }
 
-    // Load and remove oracle item from the queue
+    // Load oracle queue
     let mut oracle_queue =
         QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_info.try_borrow_data()?)?;
-    let item = oracle_queue
-        .items
-        .get(&args.input)
-        .ok_or(EphemeralVrfError::RandomnessRequestNotFound)?
-        .clone();
-    oracle_queue.items.remove(&args.input);
 
+    // Find the item with the matching input hash
+    let mut item_index = None;
+    let mut item = None;
+
+    for i in 0..MAX_QUEUE_ITEMS {
+        if let Some(queue_item) = &oracle_queue.items[i] {
+            if queue_item.id == args.input {
+                item_index = Some(i);
+                item = Some(queue_item.clone());
+                break;
+            }
+        }
+    }
+
+    // If no matching item was found, return an error
+    let index = item_index.ok_or(EphemeralVrfError::RandomnessRequestNotFound)?;
+    let item = item.unwrap();
+
+    // Remove the item from the queue
+    oracle_queue.remove_item(index);
+
+    // Serialize the updated queue
     let mut oracle_queue_bytes = vec![];
     oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
 
-    // Resize and serialize oracle queue
-    resize_pda(
-        oracle_info,
-        oracle_queue_info,
-        system_program_info,
-        oracle_queue_bytes.len(),
-    )?;
+    // Update the queue data
     let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-    oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
+    // Only copy the serialized data, which may be smaller than the allocated space
+    oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
+
+    // Log the sizes for debugging
+    solana_program::msg!("Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
 
     // Don't callback if the request is older than 1 hour and just remove the request
     if Clock::get()?.slot - item.slot > 3 * 60 * 60 {

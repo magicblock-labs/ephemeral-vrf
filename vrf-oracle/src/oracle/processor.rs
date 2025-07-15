@@ -50,28 +50,32 @@ pub async fn process_oracle_queue(
     oracle_queue: &QueueAccount,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
-        if !oracle_queue.items.is_empty() {
+        if oracle_queue.item_count > 0 {
             info!(
                 "Processing queue: {}, with len: {}",
                 queue,
-                oracle_queue.items.len()
+                oracle_queue.item_count
             );
         }
 
-        for (input_seed, item) in oracle_queue.items.iter() {
-            let mut attempts = 0;
-            while attempts < 5 {
-                match ProcessableItem(item.clone())
-                    .process_item(oracle_client, rpc_client, input_seed, queue)
-                    .await
-                {
-                    Ok(signature) => {
-                        println!("Transaction signature: {signature}");
-                        break;
-                    }
-                    Err(e) => {
-                        attempts += 1;
-                        println!("Failed to send transaction: {e:?}")
+        for i in 0..oracle_queue.items.len() {
+            // Check if this slot has a valid item
+            if let Some(item) = &oracle_queue.items[i] {
+                let input_seed = item.id;
+                let mut attempts = 0;
+                while attempts < 5 {
+                    match ProcessableItem(item.clone())
+                        .process_item(oracle_client, rpc_client, &input_seed, queue)
+                        .await
+                    {
+                        Ok(signature) => {
+                            println!("Transaction signature: {signature}");
+                            break;
+                        }
+                        Err(e) => {
+                            attempts += 1;
+                            println!("Failed to send transaction: {e:?}")
+                        }
                     }
                 }
             }

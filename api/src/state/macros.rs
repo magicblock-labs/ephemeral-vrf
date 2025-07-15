@@ -27,7 +27,8 @@ macro_rules! impl_try_from_bytes_with_discriminator_borsh {
                 if Self::discriminator().to_bytes().ne(&data[..8]) {
                     return Err(::solana_program::program_error::ProgramError::InvalidAccountData);
                 }
-                Self::try_from_slice(&data[8..]).or(Err(
+                // Use deserialize with a mutable reference to handle cases where more data is allocated
+                Self::deserialize(&mut &data[8..]).or(Err(
                     ::solana_program::program_error::ProgramError::InvalidAccountData,
                 ))
             }

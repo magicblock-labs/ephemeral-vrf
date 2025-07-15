@@ -157,7 +157,7 @@ async fn run_test() {
     let oracle_queue =
         QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.items.len(), 0);
+    assert_eq!(oracle_queue.len(), 0);
 
     println!("oracle_data_address: {:?}", oracle_data_pda(&new_oracle).0);
     println!("Oracle data: {:?}", oracle_data_info.data);
@@ -180,23 +180,17 @@ async fn run_test() {
     let oracle_queue =
         QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.items.len(), 1);
+    assert_eq!(oracle_queue.len(), 1);
 
     // Compute off-chain VRF
-    let vrf_input = oracle_queue
-        .items
-        .iter()
-        .collect::<Vec<_>>()
-        .first()
-        .unwrap()
-        .0;
+    let vrf_input = oracle_queue.items[0].clone().unwrap().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
-        compute_vrf(oracle_vrf_sk, vrf_input);
+        compute_vrf(oracle_vrf_sk, &vrf_input);
 
     // Verify generated randomness is correct.
     let verified = verify_vrf(
         oracle_vrf_pk,
-        vrf_input,
+        &vrf_input,
         output,
         (commitment_base_compressed, commitment_hash_compressed, s),
     );
@@ -207,7 +201,7 @@ async fn run_test() {
         new_oracle,
         oracle_queue_address,
         TEST_CALLBACK_PROGRAM,
-        *vrf_input,
+        vrf_input,
         PodRistrettoPoint(output.to_bytes()),
         PodRistrettoPoint(commitment_base_compressed.to_bytes()),
         PodRistrettoPoint(commitment_hash_compressed.to_bytes()),
@@ -230,7 +224,7 @@ async fn run_test() {
     let oracle_queue =
         QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.items.len(), 0);
+    assert_eq!(oracle_queue.len(), 0);
     assert_eq!(
         oracle_queue_account.lamports,
         banks
