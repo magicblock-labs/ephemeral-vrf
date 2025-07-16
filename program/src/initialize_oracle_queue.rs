@@ -2,6 +2,7 @@ use solana_program::msg;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use steel::*;
+use ephemeral_vrf_api::ID;
 
 /// Process the initialization of the Oracle queue
 ///
@@ -46,7 +47,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         &ephemeral_vrf_api::ID,
     )?;
 
-    let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+    let oracle_data = oracle_data_info.as_account::<Oracle>(&ID)?;
 
     #[cfg(not(feature = "test-sbf"))]
     let current_slot = Clock::get()?.slot;
@@ -62,37 +63,20 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         return Err(Unauthorized.into());
     }
 
-    // Create a default QueueAccount with the specified index
-    let mut oracle_queue = QueueAccount::default();
-    oracle_queue.index = args.index;
-
     // Calculate the fixed size of the account
-    let account_size = QueueAccount::size_with_discriminator();
-
+    let account_size = Queue::size_with_discriminator();
     msg!("Account size: {}", account_size);
 
     // Create the PDA with the fixed size
-    create_pda(
+    create_program_account::<Queue>(
         oracle_queue_info,
-        &ephemeral_vrf_api::ID,
-        account_size,
-        &[QUEUE, oracle_info.key.to_bytes().as_ref(), &[args.index]],
-        oracle_queue_pda(oracle_info.key, args.index).1,
         system_program,
         signer_info,
+        &ID,
+        &[QUEUE, oracle_info.key.to_bytes().as_ref(), &[args.index]],
     )?;
-
-    // Serialize the QueueAccount to bytes
-    let oracle_queue_bytes = oracle_queue.to_bytes_with_discriminator()?;
-
-    {
-        let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-        // Only copy the serialized data, which may be smaller than the allocated space
-        oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
-
-        // Log the sizes for debugging
-        msg!("INIT: Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
-    }
+    let queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+    queue.index = args.index;
 
     Ok(())
 }

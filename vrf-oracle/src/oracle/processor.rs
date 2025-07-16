@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use ephemeral_vrf::vrf::{compute_vrf, verify_vrf};
 use ephemeral_vrf_api::{
-    prelude::{provide_randomness, QueueAccount, QueueItem},
+    prelude::{provide_randomness, Queue, QueueItem},
     state::oracle_queue_pda,
     ID as PROGRAM_ID,
 };
@@ -35,7 +35,7 @@ pub async fn fetch_and_process_program_accounts(
     let accounts = rpc_client.get_program_accounts_with_config(&PROGRAM_ID, config)?;
     for (pubkey, acc) in accounts {
         if acc.owner == PROGRAM_ID {
-            if let Ok(queue) = QueueAccount::try_from_bytes_with_discriminator(&acc.data) {
+            if let Ok(queue) = Queue::try_from_bytes_with_discriminator(&acc.data) {
                 process_oracle_queue(oracle_client, rpc_client, &pubkey, &queue).await;
             }
         }
@@ -47,7 +47,7 @@ pub async fn process_oracle_queue(
     oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
     queue: &Pubkey,
-    oracle_queue: &QueueAccount,
+    oracle_queue: &Queue,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
         if oracle_queue.item_count > 0 {
@@ -58,9 +58,9 @@ pub async fn process_oracle_queue(
             );
         }
 
-        for i in 0..oracle_queue.items.len() {
+        for _ in 0..oracle_queue.items.len() {
             // Check if this slot has a valid item
-            if let Some(item) = &oracle_queue.items[i] {
+            if let Some(item: &QueueItem) = &oracle_queue.items.iter() {
                 let input_seed = item.id;
                 let mut attempts = 0;
                 while attempts < 5 {
@@ -116,11 +116,7 @@ impl ProcessableItem {
         );
 
         ix.accounts
-            .extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
-                pubkey: a.pubkey.pubkey(),
-                is_signer: a.is_signer,
-                is_writable: a.is_writable,
-            }));
+            .extend(self.0.callback_accounts_meta.iter().map(|a| a.to_account_meta()));
 
         let blockhash = rpc_client
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?

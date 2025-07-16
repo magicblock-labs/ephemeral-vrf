@@ -142,7 +142,7 @@ async fn main() -> Result<()> {
             let queue = Pubkey::from_str(queue)?;
             let queue_account = rpc_client.get_account(&queue)?;
             let queue_struct =
-                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+                Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Delegating oracle queue: {} with index: {}",
                 queue, queue_struct.index
@@ -160,7 +160,7 @@ async fn main() -> Result<()> {
                 }
             };
             let queue_struct =
-                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+                Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Undelegating oracle queue: {} with index: {}",
                 queue, queue_struct.index
@@ -171,7 +171,7 @@ async fn main() -> Result<()> {
             let queue = Pubkey::from_str(queue)?;
             let queue_account = rpc_client.get_account(&queue)?;
             let queue_struct =
-                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+                Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Closing oracle queue: {} with index: {}",
                 queue, queue_struct.index
@@ -191,7 +191,7 @@ async fn main() -> Result<()> {
                 if acc.is_ok() {
                     let account = acc?;
                     let queue_struct =
-                        QueueAccount::try_from_bytes_with_discriminator(account.data.as_slice())?;
+                        Queue::try_from_bytes(account.data.as_slice())?;
                     println!(
                         "Queue address: {}, items: {}, index: {}, delegated: {}",
                         queue,

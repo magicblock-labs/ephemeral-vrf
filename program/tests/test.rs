@@ -154,8 +154,7 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data);
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.len(), 0);
 
@@ -178,12 +177,12 @@ async fn run_test() {
         .unwrap()
         .unwrap();
     let oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
+        Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.len(), 1);
 
     // Compute off-chain VRF
-    let vrf_input = oracle_queue.items[0].clone().unwrap().id;
+    let vrf_input = oracle_queue.items[0].clone().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
         compute_vrf(oracle_vrf_sk, &vrf_input);
 
@@ -222,7 +221,7 @@ async fn run_test() {
         .unwrap()
         .unwrap();
     let oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
+        Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.len(), 0);
     assert_eq!(

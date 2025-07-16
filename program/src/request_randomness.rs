@@ -1,6 +1,7 @@
 use ephemeral_vrf_api::prelude::*;
 use solana_program::hash::hashv;
 use steel::*;
+use ephemeral_vrf_api::ID;
 
 /// Process a request for randomness
 ///
@@ -65,8 +66,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         &time.to_le_bytes(),
     ]);
 
-    let mut oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_info.try_borrow_data()?)?;
+    let mut oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
     // Check if the callback args are within the size limit
     if args.callback_args.len() > MAX_ARGS_SIZE {
@@ -81,26 +81,15 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Create the QueueItem
     let item = QueueItem {
         id: combined_hash.to_bytes(),
-        callback_discriminator: args.callback_discriminator,
+        callback_discriminator: args.callback_discriminator.as_slice().try_into()?,
         callback_program_id: args.callback_program_id.into(),
-        callback_accounts_meta: args.callback_accounts_metas,
-        callback_args: args.callback_args,
+        callback_accounts_meta: args.callback_accounts_metas.as_slice().try_into()?,
+        callback_args: args.callback_args.as_slice().try_into()?,
         slot,
     };
 
     // Add the item to the queue
     oracle_queue.add_item(item)?;
-
-    {
-        let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-        let oracle_queue_bytes = oracle_queue.to_bytes_with_discriminator()?;
-
-        // Only copy the serialized data, which may be smaller than the allocated space
-        oracle_queue_data[..oracle_queue_bytes.len()].copy_from_slice(&oracle_queue_bytes);
-
-        // Log the sizes for debugging
-        solana_program::msg!("Request RND: Serialized size: {}, Allocated size: {}", oracle_queue_bytes.len(), oracle_queue_data.len());
-    }
 
     Ok(())
 }

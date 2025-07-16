@@ -13,8 +13,8 @@ use helius_laserstream::{
     LaserstreamError,
 };
 
-use ephemeral_vrf_api::{prelude::QueueAccount, ID as PROGRAM_ID};
-
+use ephemeral_vrf_api::{ID as PROGRAM_ID};
+use ephemeral_vrf_api::prelude::Queue;
 use crate::oracle::client::QueueUpdateSource;
 
 pub struct WebSocketSource {
@@ -30,15 +30,15 @@ impl Drop for WebSocketSource {
 
 #[async_trait]
 impl QueueUpdateSource for WebSocketSource {
-    async fn next(&mut self) -> Option<(Pubkey, QueueAccount)> {
+    async fn next(&mut self) -> Option<(Pubkey, Queue)> {
         let update = self.subscription.recv().ok()?;
         let data = update.value.account.data.decode()?;
         if update.value.account.owner != PROGRAM_ID.to_string() {
             return None;
         }
-        let queue = QueueAccount::try_from_bytes_with_discriminator(&data).ok()?;
+        let queue = Queue::try_from_bytes(&data).ok()?;
         let pubkey = Pubkey::from_str(&update.value.pubkey).ok()?;
-        Some((pubkey, queue))
+        Some((pubkey, *queue))
     }
 }
 
@@ -49,14 +49,14 @@ pub struct LaserstreamSource {
 
 #[async_trait]
 impl QueueUpdateSource for LaserstreamSource {
-    async fn next(&mut self) -> Option<(Pubkey, QueueAccount)> {
+    async fn next(&mut self) -> Option<(Pubkey, Queue)> {
         while let Some(result) = self.stream.next().await {
             let update = result.ok()?;
             if let Some(UpdateOneof::Account(acc)) = update.update_oneof {
                 let acc = acc.account?;
-                let queue = QueueAccount::try_from_bytes_with_discriminator(&acc.data).ok()?;
+                let queue = Queue::try_from_bytes(&acc.data).ok()?;
                 let pubkey = Pubkey::new_from_array(acc.pubkey.try_into().ok()?);
-                return Some((pubkey, queue));
+                return Some((pubkey, *queue));
             }
         }
         None

@@ -2,12 +2,10 @@ mod macros;
 mod oracle;
 mod oracles;
 mod queue;
-mod rkyv_wrappers;
 
 pub use oracle::*;
 pub use oracles::*;
 pub use queue::*;
-pub use rkyv_wrappers::*;
 
 use steel::*;
 

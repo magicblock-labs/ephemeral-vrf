@@ -57,7 +57,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
 
     oracle_data_info.is_writable()?.has_seeds(
         &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
-        &ephemeral_vrf_api::ID,
+        &ID,
     )?;
 
     let oracles_data = oracles_info.try_borrow_data()?;
@@ -70,10 +70,10 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
             oracle_data_info,
             system_program,
             signer_info,
-            &ephemeral_vrf_api::ID,
+            &ID,
             &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
         )?;
-        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ID)?;
         oracle_data.vrf_pubkey = args.oracle_pubkey;
         oracle_data.registration_slot = Clock::get()?.slot;
     } else {
