@@ -1,4 +1,4 @@
-use curve25519_dalek::Scalar;
+use curve25519_dalek::scalar::Scalar;
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::{add_ristretto, multiply_ristretto, PodRistrettoPoint};
 use solana_curve25519::scalar::PodScalar;

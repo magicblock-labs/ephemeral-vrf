@@ -11,7 +11,7 @@ use log::info;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig};
 use solana_curve25519::{ristretto::PodRistrettoPoint, scalar::PodScalar};
 use solana_sdk::{
-    commitment_config::CommitmentConfig, instruction::AccountMeta, pubkey::Pubkey,
+    commitment_config::CommitmentConfig, pubkey::Pubkey,
     signature::Signer, transaction::Transaction,
 };
 

@@ -36,7 +36,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let args = RequestRandomness::try_from_bytes(data)?;
 
     // Load accounts
-    let [signer_info, program_identity_info, oracle_queue_info, system_program_info, slothashes_account_info] =
+    let [signer_info, program_identity_info, oracle_queue_info, _system_program_info, slothashes_account_info] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -66,7 +66,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         &time.to_le_bytes(),
     ]);
 
-    let mut oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
     // Check if the callback args are within the size limit
     if args.callback_args.len() > MAX_ARGS_SIZE {
@@ -81,10 +81,13 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Create the QueueItem
     let item = QueueItem {
         id: combined_hash.to_bytes(),
-        callback_discriminator: args.callback_discriminator.as_slice().try_into()?,
-        callback_program_id: args.callback_program_id.into(),
-        callback_accounts_meta: args.callback_accounts_metas.as_slice().try_into()?,
-        callback_args: args.callback_args.as_slice().try_into()?,
+        callback_discriminator: args.callback_discriminator.as_slice().try_into()
+            .map_err(|_| ProgramError::InvalidArgument)?,
+        callback_program_id: args.callback_program_id.to_bytes(),
+        callback_accounts_meta: args.callback_accounts_metas.as_slice().try_into()
+            .map_err(|_| ProgramError::InvalidArgument)?,
+        callback_args: args.callback_args.as_slice().try_into()
+            .map_err(|_| ProgramError::InvalidArgument)?,
         slot,
     };
 
