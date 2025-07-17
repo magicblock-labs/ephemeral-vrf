@@ -176,8 +176,7 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue =
-        Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.len(), 1);
 
@@ -220,8 +219,7 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue =
-        Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.len(), 0);
     assert_eq!(

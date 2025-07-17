@@ -55,10 +55,9 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         .is_writable()?
         .has_seeds(&[ORACLES], &ephemeral_vrf_api::ID)?;
 
-    oracle_data_info.is_writable()?.has_seeds(
-        &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
-        &ID,
-    )?;
+    oracle_data_info
+        .is_writable()?
+        .has_seeds(&[ORACLE_DATA, args.identity.to_bytes().as_ref()], &ID)?;
 
     let oracles_data = oracles_info.try_borrow_data()?;
     let mut oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data)?;

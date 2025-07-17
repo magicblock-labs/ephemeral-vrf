@@ -1,8 +1,8 @@
 use crate::verify::verify_vrf;
 use ephemeral_vrf_api::prelude::*;
+use ephemeral_vrf_api::ID;
 use solana_program::hash::hash;
 use steel::*;
-use ephemeral_vrf_api::ID;
 
 /// Process the provide randomness instruction which verifies VRF proof and executes vrf-macro
 ///
@@ -47,7 +47,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
         &ephemeral_vrf_api::ID,
     )?;
-    let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+    let oracle_data = oracle_data_info.as_account::<Oracle>(&ID)?;
 
     let output = &args.output;
     let commitment_base_compressed = &args.commitment_base_compressed;
@@ -83,7 +83,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
             return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
         }
 
-        (index, item.clone()) // Clone item to use later
+        (index, *item)
     };
 
     // Remove the item from the queue
@@ -96,14 +96,15 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         is_signer: true,
         is_writable: false,
     }];
-    accounts_metas.extend(item.callback_accounts_meta.iter().map(|acc| acc.to_account_meta()));
+    accounts_metas.extend(item.account_metas().iter().map(|acc| acc.to_account_meta()));
+
     let mut callback_data = Vec::with_capacity(
-        item.callback_discriminator.len() + output.0.len() + item.callback_args.len(),
+        item.callback_discriminator().len() + output.0.len() + item.callback_args().len(),
     );
-    callback_data.extend_from_slice(&item.callback_discriminator);
+    callback_data.extend_from_slice(item.callback_discriminator());
     let rdn = hash(&output.0);
     callback_data.extend_from_slice(rdn.to_bytes().as_ref());
-    callback_data.extend_from_slice(&item.callback_args);
+    callback_data.extend_from_slice(item.callback_args());
 
     let ix = Instruction {
         program_id: Pubkey::new_from_array(item.callback_program_id),

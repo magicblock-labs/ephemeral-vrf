@@ -1,8 +1,8 @@
-use solana_program::msg;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 use ephemeral_vrf_api::ID;
+use solana_program::msg;
+use steel::*;
 
 /// Process the initialization of the Oracle queue
 ///

@@ -22,10 +22,10 @@ use crate::oracle::sources::{LaserstreamSource, WebSocketSource};
 use crate::oracle::utils::queue_memcmp_filter;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ephemeral_vrf::vrf::generate_vrf_keypair;
+use ephemeral_vrf_api::prelude::AccountDiscriminator;
 use ephemeral_vrf_api::{prelude::Queue, ID as PROGRAM_ID};
 use log::{error, info, warn};
 use solana_sdk::signer::Signer;
-use ephemeral_vrf_api::prelude::AccountDiscriminator;
 
 pub struct OracleClient {
     pub keypair: Keypair,

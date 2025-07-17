@@ -12,8 +12,9 @@ macro_rules! impl_to_bytes_with_discriminator_rkyv {
                 buffer.extend_from_slice(&Self::discriminator().to_bytes());
 
                 // Serialize the struct with rkyv
-                let serialized = rkyv::to_bytes::<_, 256>(self)
-                    .map_err(|_| ::solana_program::program_error::ProgramError::InvalidAccountData)?;
+                let serialized = rkyv::to_bytes::<_, 256>(self).map_err(|_| {
+                    ::solana_program::program_error::ProgramError::InvalidAccountData
+                })?;
 
                 // Write the size of the serialized data (8 bytes for alignment)
                 let size = serialized.len() as u64;
@@ -47,8 +48,7 @@ macro_rules! impl_try_from_bytes_with_discriminator_rkyv {
 
                 // Read the size of the serialized data (8 bytes)
                 let size = u64::from_le_bytes([
-                    data[8], data[9], data[10], data[11], 
-                    data[12], data[13], data[14], data[15]
+                    data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15],
                 ]) as usize;
 
                 // Check if data is long enough to contain the serialized data
@@ -57,8 +57,10 @@ macro_rules! impl_try_from_bytes_with_discriminator_rkyv {
                 }
 
                 // Use the high-level from_bytes function to deserialize only the valid data
-                let deserialized = rkyv::from_bytes::<Self>(&data[16..(16 + size)])
-                    .map_err(|_| ::solana_program::program_error::ProgramError::InvalidAccountData)?;
+                let deserialized =
+                    rkyv::from_bytes::<Self>(&data[16..(16 + size)]).map_err(|_| {
+                        ::solana_program::program_error::ProgramError::InvalidAccountData
+                    })?;
 
                 Ok(deserialized)
             }
@@ -80,8 +82,9 @@ macro_rules! impl_to_bytes_with_discriminator_borsh {
                 buffer.extend_from_slice(&Self::discriminator().to_bytes());
 
                 // Serialize the struct with borsh
-                let serialized = borsh::to_vec(self)
-                    .map_err(|_| ::solana_program::program_error::ProgramError::InvalidAccountData)?;
+                let serialized = borsh::to_vec(self).map_err(|_| {
+                    ::solana_program::program_error::ProgramError::InvalidAccountData
+                })?;
 
                 // Append the serialized data
                 buffer.extend_from_slice(&serialized);
@@ -110,8 +113,9 @@ macro_rules! impl_try_from_bytes_with_discriminator_borsh {
                 }
 
                 // Use borsh to deserialize
-                let deserialized = borsh::from_slice::<Self>(&data[8..])
-                    .map_err(|_| ::solana_program::program_error::ProgramError::InvalidAccountData)?;
+                let deserialized = borsh::from_slice::<Self>(&data[8..]).map_err(|_| {
+                    ::solana_program::program_error::ProgramError::InvalidAccountData
+                })?;
 
                 Ok(deserialized)
             }

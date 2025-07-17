@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::oracle::client::OracleClient;
 use anyhow::Result;
 use ephemeral_vrf::vrf::{compute_vrf, verify_vrf};
 use ephemeral_vrf_api::{
@@ -11,11 +12,10 @@ use log::info;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig};
 use solana_curve25519::{ristretto::PodRistrettoPoint, scalar::PodScalar};
 use solana_sdk::{
-    commitment_config::CommitmentConfig, pubkey::Pubkey,
-    signature::Signer, transaction::Transaction,
+    commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer,
+    transaction::Transaction,
 };
 use steel::AccountDeserialize;
-use crate::oracle::client::OracleClient;
 
 pub async fn fetch_and_process_program_accounts(
     oracle_client: &Arc<OracleClient>,
@@ -36,7 +36,7 @@ pub async fn fetch_and_process_program_accounts(
     for (pubkey, acc) in accounts {
         if acc.owner == PROGRAM_ID {
             if let Ok(queue) = Queue::try_from_bytes(&acc.data) {
-                process_oracle_queue(oracle_client, rpc_client, &pubkey, &queue).await;
+                process_oracle_queue(oracle_client, rpc_client, &pubkey, queue).await;
             }
         }
     }
@@ -53,8 +53,7 @@ pub async fn process_oracle_queue(
         if oracle_queue.item_count > 0 {
             info!(
                 "Processing queue: {}, with len: {}",
-                queue,
-                oracle_queue.item_count
+                queue, oracle_queue.item_count
             );
         }
 
@@ -63,7 +62,7 @@ pub async fn process_oracle_queue(
             let input_seed = item.id;
             let mut attempts = 0;
             while attempts < 5 {
-                match ProcessableItem(item.clone())
+                match ProcessableItem(*item)
                     .process_item(oracle_client, rpc_client, &input_seed, queue)
                     .await
                 {
@@ -113,8 +112,12 @@ impl ProcessableItem {
             PodScalar(s.to_bytes()),
         );
 
-        ix.accounts
-            .extend(self.0.callback_accounts_meta.iter().map(|a| a.to_account_meta()));
+        ix.accounts.extend(
+            self.0
+                .callback_accounts_meta
+                .iter()
+                .map(|a| a.to_account_meta()),
+        );
 
         let blockhash = rpc_client
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?

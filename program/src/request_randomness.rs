@@ -1,7 +1,7 @@
 use ephemeral_vrf_api::prelude::*;
+use ephemeral_vrf_api::ID;
 use solana_program::hash::hashv;
 use steel::*;
-use ephemeral_vrf_api::ID;
 
 /// Process a request for randomness
 ///
@@ -68,24 +68,34 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
-    // Check if the callback args are within the size limit
-    if args.callback_args.len() > MAX_ARGS_SIZE {
+    // Check limit for the request
+    if args.callback_args.len() > MAX_ARGS_SIZE
+        || args.callback_accounts_metas.len() > MAX_ACCOUNTS
+        || args.callback_discriminator.len() > 8
+    {
         return Err(ProgramError::InvalidArgument);
     }
 
-    // Check if the number of accounts is within the limit
-    if args.callback_accounts_metas.len() > MAX_ACCOUNTS {
-        return Err(ProgramError::InvalidArgument);
-    }
+    let mut callback_accounts_meta = [SerializableAccountMeta::default(); MAX_ACCOUNTS];
+    let mut callback_args = [0u8; MAX_ARGS_SIZE];
+    let mut callback_discriminator = [0u8; 8];
 
-    // Create the QueueItem
+    callback_accounts_meta[..args.callback_accounts_metas.len()]
+        .copy_from_slice(&args.callback_accounts_metas);
+    callback_args[..args.callback_args.len()].copy_from_slice(&args.callback_args);
+    callback_discriminator[..args.callback_discriminator.len()]
+        .copy_from_slice(&args.callback_discriminator);
+
     let item = QueueItem {
         id: combined_hash.to_bytes(),
-        callback_discriminator: args.callback_discriminator.as_slice().try_into().map_err(|_| ProgramError::InvalidArgument)?,
+        callback_discriminator,
         callback_program_id: args.callback_program_id.to_bytes(),
-        callback_accounts_meta: args.callback_accounts_metas.as_slice().try_into().map_err(|_| ProgramError::IncorrectAuthority)?,
-        callback_args: args.callback_args.as_slice().try_into().map_err(|_| ProgramError::IncorrectProgramId)?,
+        callback_accounts_meta,
+        callback_args: CallbackArgs(callback_args),
         slot,
+        args_size: args.callback_args.len() as u8,
+        num_accounts_meta: args.callback_accounts_metas.len() as u8,
+        discriminator_size: args.callback_discriminator.len() as u8,
     };
 
     // Add the item to the queue

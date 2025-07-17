@@ -1,13 +1,13 @@
 use crate::prelude::AccountDiscriminator;
 use borsh::{BorshDeserialize, BorshSerialize};
-use steel::{account, Pod, ProgramError, Zeroable, trace, AccountMeta, Pubkey};
+use steel::{account, trace, AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
 /// The maximum number of accounts allowed in a QueueItem
 pub const MAX_ACCOUNTS: usize = 5;
 /// The maximum size of callback args in bytes
-pub const MAX_ARGS_SIZE: usize = 8;
+pub const MAX_ARGS_SIZE: usize = 128;
 /// The maximum number of items in the queue
-pub const MAX_QUEUE_ITEMS: usize = 20;
+pub const MAX_QUEUE_ITEMS: usize = 26;
 
 /// Fixed-size QueueAccount with preallocated space
 #[repr(C, packed)]
@@ -27,12 +27,41 @@ pub struct QueueItem {
     pub callback_discriminator: [u8; 8],
     pub callback_program_id: [u8; 32],
     pub callback_accounts_meta: [SerializableAccountMeta; MAX_ACCOUNTS],
-    pub callback_args: [u8; MAX_ARGS_SIZE],
+    pub callback_args: CallbackArgs,
     pub slot: u64,
+    pub args_size: u8,
+    pub num_accounts_meta: u8,
+    pub discriminator_size: u8,
+}
+
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
+pub struct CallbackArgs(pub [u8; MAX_ARGS_SIZE]);
+
+impl Default for CallbackArgs {
+    fn default() -> Self {
+        CallbackArgs([0u8; MAX_ARGS_SIZE])
+    }
+}
+
+impl QueueItem {
+    pub fn account_metas(&self) -> &[SerializableAccountMeta] {
+        &self.callback_accounts_meta[..self.num_accounts_meta as usize]
+    }
+
+    pub fn callback_args(&self) -> &[u8] {
+        &self.callback_args.0[..self.args_size as usize]
+    }
+
+    pub fn callback_discriminator(&self) -> &[u8] {
+        &self.callback_discriminator[..self.discriminator_size as usize]
+    }
 }
 
 #[repr(C, packed)]
-#[derive(Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq, BorshDeserialize, BorshSerialize,
+)]
 pub struct SerializableAccountMeta {
     pub pubkey: [u8; 32],
     pub is_signer: u8,
@@ -79,8 +108,13 @@ impl Queue {
     }
 
     pub fn iter_items(&self) -> impl Iterator<Item = &QueueItem> {
-        self.items.iter().enumerate()
-            .filter_map(|(i, item)| if self.used_bitmap[i] == 1 { Some(item) } else { None })
+        self.items.iter().enumerate().filter_map(|(i, item)| {
+            if self.used_bitmap[i] == 1 {
+                Some(item)
+            } else {
+                None
+            }
+        })
     }
 
     pub fn find_item_by_id(&self, id: &[u8; 32]) -> Option<(usize, &QueueItem)> {

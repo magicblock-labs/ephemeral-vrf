@@ -142,8 +142,7 @@ async fn main() -> Result<()> {
         Commands::DelegateOracleQueue { queue } => {
             let queue = Pubkey::from_str(queue)?;
             let queue_account = rpc_client.get_account(&queue)?;
-            let queue_struct =
-                Queue::try_from_bytes(queue_account.data.as_slice())?;
+            let queue_struct = Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Delegating oracle queue: {} with index: {}",
                 queue, queue_struct.index
@@ -160,8 +159,7 @@ async fn main() -> Result<()> {
                     exit(1);
                 }
             };
-            let queue_struct =
-                Queue::try_from_bytes(queue_account.data.as_slice())?;
+            let queue_struct = Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Undelegating oracle queue: {} with index: {}",
                 queue, queue_struct.index
@@ -171,8 +169,7 @@ async fn main() -> Result<()> {
         Commands::CloseOracleQueue { queue } => {
             let queue = Pubkey::from_str(queue)?;
             let queue_account = rpc_client.get_account(&queue)?;
-            let queue_struct =
-                Queue::try_from_bytes(queue_account.data.as_slice())?;
+            let queue_struct = Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Closing oracle queue: {} with index: {}",
                 queue, queue_struct.index
@@ -191,8 +188,7 @@ async fn main() -> Result<()> {
                 let acc = rpc_client.get_account(&queue);
                 if acc.is_ok() {
                     let account = acc?;
-                    let queue_struct =
-                        Queue::try_from_bytes(account.data.as_slice())?;
+                    let queue_struct = Queue::try_from_bytes(account.data.as_slice())?;
                     println!(
                         "Queue address: {}, items: {}, index: {}, delegated: {}",
                         queue,
