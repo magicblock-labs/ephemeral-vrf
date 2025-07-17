@@ -142,8 +142,8 @@ async fn run_test() {
     );
 
     // Submit init oracle queue transaction.
-    let ix = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
+    let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 
@@ -161,7 +161,6 @@ async fn run_test() {
     println!("oracle_data_address: {:?}", oracle_data_pda(&new_oracle).0);
     println!("Oracle data: {:?}", oracle_data_info.data);
     println!("oracle_queue_address: {:?}", oracle_queue_address);
-    println!("Oracle queue data: {:?}", oracle_queue_account.data);
 
     // Submit request for randomness transaction.
     let ix = request_randomness(payer.pubkey(), 0);
@@ -181,7 +180,7 @@ async fn run_test() {
     assert_eq!(oracle_queue.len(), 1);
 
     // Compute off-chain VRF
-    let vrf_input = oracle_queue.items[0].clone().id;
+    let vrf_input = oracle_queue.iter_items().next().unwrap().clone().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
         compute_vrf(oracle_vrf_sk, &vrf_input);
 
@@ -251,8 +250,8 @@ async fn run_test() {
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
     // Initialize a new oracle queue
-    let ix = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
+    let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 

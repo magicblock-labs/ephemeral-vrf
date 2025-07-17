@@ -1,3 +1,5 @@
+use crate::prelude::*;
+use crate::ID;
 use ephemeral_rollups_sdk::consts::{DELEGATION_PROGRAM_ID, MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
 use ephemeral_rollups_sdk::pda::{
     delegate_buffer_pda_from_delegated_account_and_owner_program,
@@ -8,11 +10,9 @@ use solana_curve25519::scalar::PodScalar;
 use solana_program::bpf_loader_upgradeable;
 use steel::*;
 
-use crate::prelude::*;
-
 pub fn initialize(signer: Pubkey) -> Instruction {
     Instruction {
-        program_id: crate::ID,
+        program_id: ID,
         accounts: vec![
             AccountMeta::new(signer, true),
             AccountMeta::new(oracles_pda().0, false),
@@ -65,18 +65,25 @@ pub fn remove_oracle(signer: Pubkey, identity: Pubkey) -> Instruction {
     }
 }
 
-pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> Instruction {
-    Instruction {
-        program_id: crate::ID,
-        accounts: vec![
-            AccountMeta::new(signer, true),
-            AccountMeta::new_readonly(identity, false),
-            AccountMeta::new_readonly(oracle_data_pda(&identity).0, false),
-            AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-        ],
-        data: InitializeOracleQueue { index }.to_bytes(),
+/// Returns a list of instructions to initialize an oracle queue. The initialize_oracle_queue is
+/// repeated in chunks of 10240 bytes, which is the maximum alloc per instruction.
+pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> Vec<Instruction> {
+    let inits = (Queue::size_with_discriminator() + 10240 - 1) / 10240;
+    let mut ixs = Vec::with_capacity(inits);
+    for _ in 0..inits {
+        ixs.push(Instruction {
+            program_id: ID,
+            accounts: vec![
+                AccountMeta::new(signer, true),
+                AccountMeta::new_readonly(identity, false),
+                AccountMeta::new_readonly(oracle_data_pda(&identity).0, false),
+                AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
+                AccountMeta::new_readonly(system_program::ID, false),
+            ],
+            data: InitializeOracleQueue { index }.to_bytes(),
+        })
     }
+    ixs
 }
 
 #[allow(clippy::too_many_arguments)]
