@@ -6,7 +6,7 @@ pub const MAX_ACCOUNTS: usize = 5;
 pub const MAX_ARGS_SIZE: usize = 128;
 pub const MAX_QUEUE_ITEMS: usize = 25; // TODO(GabrielePicco): Increase once we can delegate account larger than 10kb
 
-/// Fixed-size QueueAccount with preallocated space
+/// Fixed-size QueueAccount with pre-allocated space
 #[repr(C, packed)]
 #[derive(Clone, Copy, Debug, Default, Zeroable, Pod)]
 pub struct Queue {
