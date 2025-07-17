@@ -12,6 +12,7 @@ use solana_sdk::{
 };
 use std::process::exit;
 use std::str::FromStr;
+use steel::AccountDeserialize;
 
 /// VRF CLI - A tool to interact with the Ephemeral VRF program
 #[derive(Parser, Debug)]

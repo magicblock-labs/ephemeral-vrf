@@ -14,7 +14,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig, pubkey::Pubkey,
     signature::Signer, transaction::Transaction,
 };
-
+use steel::AccountDeserialize;
 use crate::oracle::client::OracleClient;
 
 pub async fn fetch_and_process_program_accounts(
@@ -35,7 +35,7 @@ pub async fn fetch_and_process_program_accounts(
     let accounts = rpc_client.get_program_accounts_with_config(&PROGRAM_ID, config)?;
     for (pubkey, acc) in accounts {
         if acc.owner == PROGRAM_ID {
-            if let Ok(queue) = Queue::try_from_bytes_with_discriminator(&acc.data) {
+            if let Ok(queue) = Queue::try_from_bytes(&acc.data) {
                 process_oracle_queue(oracle_client, rpc_client, &pubkey, &queue).await;
             }
         }
@@ -58,24 +58,22 @@ pub async fn process_oracle_queue(
             );
         }
 
-        for _ in 0..oracle_queue.items.len() {
+        for item in oracle_queue.iter_items() {
             // Check if this slot has a valid item
-            if let Some(item: &QueueItem) = &oracle_queue.items.iter() {
-                let input_seed = item.id;
-                let mut attempts = 0;
-                while attempts < 5 {
-                    match ProcessableItem(item.clone())
-                        .process_item(oracle_client, rpc_client, &input_seed, queue)
-                        .await
-                    {
-                        Ok(signature) => {
-                            println!("Transaction signature: {signature}");
-                            break;
-                        }
-                        Err(e) => {
-                            attempts += 1;
-                            println!("Failed to send transaction: {e:?}")
-                        }
+            let input_seed = item.id;
+            let mut attempts = 0;
+            while attempts < 5 {
+                match ProcessableItem(item.clone())
+                    .process_item(oracle_client, rpc_client, &input_seed, queue)
+                    .await
+                {
+                    Ok(signature) => {
+                        println!("Transaction signature: {signature}");
+                        break;
+                    }
+                    Err(e) => {
+                        attempts += 1;
+                        println!("Failed to send transaction: {e:?}")
                     }
                 }
             }
@@ -107,7 +105,7 @@ impl ProcessableItem {
         let mut ix = provide_randomness(
             oracle_client.keypair.pubkey(),
             *queue,
-            self.0.callback_program_id.pubkey(),
+            Pubkey::new_from_array(self.0.callback_program_id),
             *vrf_input,
             PodRistrettoPoint(output.to_bytes()),
             PodRistrettoPoint(commitment_base.to_bytes()),

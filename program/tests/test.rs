@@ -156,7 +156,7 @@ async fn run_test() {
         .unwrap();
     let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data);
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.len(), 0);
+    assert_eq!(oracle_queue.unwrap().item_count, 0);
 
     println!("oracle_data_address: {:?}", oracle_data_pda(&new_oracle).0);
     println!("Oracle data: {:?}", oracle_data_info.data);

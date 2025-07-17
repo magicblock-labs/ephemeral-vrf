@@ -68,46 +68,45 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Load oracle queue
     let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
-    // Find the item and clone the necessary data
-    let (index, item) = oracle_queue.find_item_by_id(&args.input)
-        .ok_or::<ProgramError>(EphemeralVrfError::RandomnessRequestNotFound.into())?;
-
     // Check that the oracle signer is not in the vrf-macro accounts
-    if item
-        .callback_accounts_meta
-        .iter()
-        .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
-    {
-        return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
-    }
+    let (index, item) = {
+        let (index, item) = oracle_queue
+            .find_item_by_id(&args.input)
+            .ok_or::<ProgramError>(EphemeralVrfError::RandomnessRequestNotFound.into())?;
 
-    // Clone the necessary data from the item before removing it
-    let callback_program_id = item.callback_program_id;
-    let callback_accounts_meta = item.callback_accounts_meta.clone();
-    let callback_discriminator = item.callback_discriminator.clone();
-    let callback_args = item.callback_args.clone();
+        // Check that the oracle signer is not in the vrf-macro accounts
+        if item
+            .callback_accounts_meta
+            .iter()
+            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
+        {
+            return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
+        }
+
+        (index, item.clone()) // Clone item to use later
+    };
 
     // Remove the item from the queue
     oracle_queue.remove_item(index)?;
 
     // Invoke vrf-macro with randomness
-    callback_program_info.has_address(&Pubkey::new_from_array(callback_program_id))?;
+    callback_program_info.has_address(&Pubkey::new_from_array(item.callback_program_id))?;
     let mut accounts_metas = vec![AccountMeta {
         pubkey: *program_identity_info.key,
         is_signer: true,
         is_writable: false,
     }];
-    accounts_metas.extend(callback_accounts_meta.iter().map(|acc| acc.to_account_meta()));
+    accounts_metas.extend(item.callback_accounts_meta.iter().map(|acc| acc.to_account_meta()));
     let mut callback_data = Vec::with_capacity(
-        callback_discriminator.len() + output.0.len() + callback_args.len(),
+        item.callback_discriminator.len() + output.0.len() + item.callback_args.len(),
     );
-    callback_data.extend_from_slice(&callback_discriminator);
+    callback_data.extend_from_slice(&item.callback_discriminator);
     let rdn = hash(&output.0);
     callback_data.extend_from_slice(rdn.to_bytes().as_ref());
-    callback_data.extend_from_slice(&callback_args);
+    callback_data.extend_from_slice(&item.callback_args);
 
     let ix = Instruction {
-        program_id: Pubkey::new_from_array(callback_program_id),
+        program_id: Pubkey::new_from_array(item.callback_program_id),
         accounts: accounts_metas,
         data: callback_data,
     };

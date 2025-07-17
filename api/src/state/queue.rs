@@ -7,7 +7,7 @@ pub const MAX_ACCOUNTS: usize = 5;
 /// The maximum size of callback args in bytes
 pub const MAX_ARGS_SIZE: usize = 8;
 /// The maximum number of items in the queue
-pub const MAX_QUEUE_ITEMS: usize = 10;
+pub const MAX_QUEUE_ITEMS: usize = 20;
 
 /// Fixed-size QueueAccount with preallocated space
 #[repr(C, packed)]
@@ -76,6 +76,11 @@ impl Queue {
         self.used_bitmap[index] = 0;
         self.item_count -= 1;
         Ok(item)
+    }
+
+    pub fn iter_items(&self) -> impl Iterator<Item = &QueueItem> {
+        self.items.iter().enumerate()
+            .filter_map(|(i, item)| if self.used_bitmap[i] == 1 { Some(item) } else { None })
     }
 
     pub fn find_item_by_id(&self, id: &[u8; 32]) -> Option<(usize, &QueueItem)> {

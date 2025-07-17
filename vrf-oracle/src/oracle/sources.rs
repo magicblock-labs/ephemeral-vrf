@@ -12,7 +12,7 @@ use helius_laserstream::{
     grpc::{subscribe_update::UpdateOneof, SubscribeUpdate},
     LaserstreamError,
 };
-
+use steel::AccountDeserialize;
 use ephemeral_vrf_api::{ID as PROGRAM_ID};
 use ephemeral_vrf_api::prelude::Queue;
 use crate::oracle::client::QueueUpdateSource;

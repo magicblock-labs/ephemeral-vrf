@@ -81,13 +81,10 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Create the QueueItem
     let item = QueueItem {
         id: combined_hash.to_bytes(),
-        callback_discriminator: args.callback_discriminator.as_slice().try_into()
-            .map_err(|_| ProgramError::InvalidArgument)?,
+        callback_discriminator: args.callback_discriminator.as_slice().try_into().map_err(|_| ProgramError::InvalidArgument)?,
         callback_program_id: args.callback_program_id.to_bytes(),
-        callback_accounts_meta: args.callback_accounts_metas.as_slice().try_into()
-            .map_err(|_| ProgramError::InvalidArgument)?,
-        callback_args: args.callback_args.as_slice().try_into()
-            .map_err(|_| ProgramError::InvalidArgument)?,
+        callback_accounts_meta: args.callback_accounts_metas.as_slice().try_into().map_err(|_| ProgramError::IncorrectAuthority)?,
+        callback_args: args.callback_args.as_slice().try_into().map_err(|_| ProgramError::IncorrectProgramId)?,
         slot,
     };
 

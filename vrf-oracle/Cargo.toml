@@ -24,3 +24,4 @@ futures-util.workspace = true
 async-trait.workspace = true
 futures-core.workspace = true
 crossbeam-channel.workspace = true
+steel.workspace = true
