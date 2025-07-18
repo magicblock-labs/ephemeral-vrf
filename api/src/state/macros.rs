@@ -43,9 +43,10 @@ macro_rules! impl_try_from_bytes_with_discriminator_borsh {
                 }
 
                 // Use borsh to deserialize
-                let deserialized = borsh::from_slice::<Self>(&data[8..]).map_err(|_| {
-                    ::solana_program::program_error::ProgramError::InvalidAccountData
-                })?;
+                let deserialized = <Self as ::borsh::BorshDeserialize>::try_from_slice(&data[8..])
+                    .map_err(|_| {
+                        ::solana_program::program_error::ProgramError::InvalidAccountData
+                    })?;
 
                 Ok(deserialized)
             }
