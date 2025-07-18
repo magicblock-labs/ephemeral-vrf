@@ -30,4 +30,5 @@ steel.workspace = true
 ephemeral-vrf = { workspace = true}
 solana-program-test = { workspace = true }
 solana-sdk = { workspace = true }
+base64 = {workspace = true}
 tokio = { workspace = true, features = ["full"] }

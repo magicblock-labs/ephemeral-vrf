@@ -22,8 +22,8 @@ use crate::oracle::sources::{LaserstreamSource, WebSocketSource};
 use crate::oracle::utils::queue_memcmp_filter;
 use curve25519_dalek::{RistrettoPoint, Scalar};
 use ephemeral_vrf::vrf::generate_vrf_keypair;
-use ephemeral_vrf_api::state::AccountWithDiscriminator;
-use ephemeral_vrf_api::{prelude::QueueAccount, ID as PROGRAM_ID};
+use ephemeral_vrf_api::prelude::AccountDiscriminator;
+use ephemeral_vrf_api::{prelude::Queue, ID as PROGRAM_ID};
 use log::{error, info, warn};
 use solana_sdk::signer::Signer;
 
@@ -39,7 +39,7 @@ pub struct OracleClient {
 
 #[async_trait]
 pub trait QueueUpdateSource: Send {
-    async fn next(&mut self) -> Option<(Pubkey, QueueAccount)>;
+    async fn next(&mut self) -> Option<(Pubkey, Queue)>;
 }
 
 impl OracleClient {
@@ -112,7 +112,7 @@ impl OracleClient {
                             SubscribeRequestFilterAccountsFilterMemcmp {
                                 offset: 0,
                                 data: Some(AccountsFilterMemcmpOneof::Bytes(
-                                    QueueAccount::discriminator().to_bytes().to_vec(),
+                                    AccountDiscriminator::Queue.to_bytes().to_vec(),
                                 )),
                             },
                         )),

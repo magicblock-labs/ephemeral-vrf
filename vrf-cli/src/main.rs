@@ -12,6 +12,7 @@ use solana_sdk::{
 };
 use std::process::exit;
 use std::str::FromStr;
+use steel::AccountDeserialize;
 
 /// VRF CLI - A tool to interact with the Ephemeral VRF program
 #[derive(Parser, Debug)]
@@ -114,10 +115,10 @@ async fn main() -> Result<()> {
     let compute_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(200_000);
     let blockhash = rpc_client.get_latest_blockhash()?;
 
-    let instruction = match &args.command {
+    let instructions = match &args.command {
         Commands::Initialize {} => {
             println!("Initializing program state...");
-            initialize(signer.pubkey())
+            vec![initialize(signer.pubkey())]
         }
         Commands::AddOracle {
             identity,
@@ -126,28 +127,31 @@ async fn main() -> Result<()> {
             let identity = Pubkey::from_str(identity)?;
             let oracle_pubkey_bytes = Pubkey::from_str(oracle_pubkey)?.to_bytes();
             println!("Adding oracle with identity: {identity}");
-            add_oracle(signer.pubkey(), identity, oracle_pubkey_bytes)
+            vec![add_oracle(signer.pubkey(), identity, oracle_pubkey_bytes)]
         }
         Commands::RemoveOracle { identity } => {
             let identity = Pubkey::from_str(identity)?;
             println!("Removing oracle with identity: {identity}");
-            remove_oracle(signer.pubkey(), identity)
+            vec![remove_oracle(signer.pubkey(), identity)]
         }
         Commands::InitializeOracleQueue { identity, index } => {
             let identity = Pubkey::from_str(identity)?;
             println!("Initializing oracle queue for identity: {identity} with index: {index}");
-            initialize_oracle_queue(signer.pubkey(), identity, *index)
+            initialize_oracle_queue(signer.pubkey(), identity, *index).to_vec()
         }
         Commands::DelegateOracleQueue { queue } => {
             let queue = Pubkey::from_str(queue)?;
             let queue_account = rpc_client.get_account(&queue)?;
-            let queue_struct =
-                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+            let queue_struct = Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Delegating oracle queue: {} with index: {}",
                 queue, queue_struct.index
             );
-            delegate_oracle_queue(signer.pubkey(), queue, queue_struct.index)
+            vec![delegate_oracle_queue(
+                signer.pubkey(),
+                queue,
+                queue_struct.index,
+            )]
         }
         Commands::UndelegateOracleQueue { queue } => {
             let queue = Pubkey::from_str(queue)?;
@@ -159,24 +163,26 @@ async fn main() -> Result<()> {
                     exit(1);
                 }
             };
-            let queue_struct =
-                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+            let queue_struct = Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Undelegating oracle queue: {} with index: {}",
                 queue, queue_struct.index
             );
-            undelegate_oracle_queue(signer.pubkey(), queue, queue_struct.index)
+            vec![undelegate_oracle_queue(
+                signer.pubkey(),
+                queue,
+                queue_struct.index,
+            )]
         }
         Commands::CloseOracleQueue { queue } => {
             let queue = Pubkey::from_str(queue)?;
             let queue_account = rpc_client.get_account(&queue)?;
-            let queue_struct =
-                QueueAccount::try_from_bytes_with_discriminator(queue_account.data.as_slice())?;
+            let queue_struct = Queue::try_from_bytes(queue_account.data.as_slice())?;
             println!(
                 "Closing oracle queue: {} with index: {}",
                 queue, queue_struct.index
             );
-            close_oracle_queue(signer.pubkey(), queue_struct.index)
+            vec![close_oracle_queue(signer.pubkey(), queue_struct.index)]
         }
         Commands::DerivePubkey {} => {
             let (_, oracle_vrf_pk) = generate_vrf_keypair(&signer);
@@ -190,12 +196,11 @@ async fn main() -> Result<()> {
                 let acc = rpc_client.get_account(&queue);
                 if acc.is_ok() {
                     let account = acc?;
-                    let queue_struct =
-                        QueueAccount::try_from_bytes_with_discriminator(account.data.as_slice())?;
+                    let queue_struct = Queue::try_from_bytes(account.data.as_slice())?;
                     println!(
                         "Queue address: {}, items: {}, index: {}, delegated: {}",
                         queue,
-                        queue_struct.items.len(),
+                        queue_struct.item_count,
                         queue_struct.index,
                         !account.owner.eq(&ephemeral_vrf_api::ID)
                     );
@@ -205,12 +210,11 @@ async fn main() -> Result<()> {
         }
     };
 
-    let transaction = Transaction::new_signed_with_payer(
-        &[compute_budget_ix, instruction],
-        Some(&signer.pubkey()),
-        &[&signer],
-        blockhash,
-    );
+    let mut ixs = Vec::with_capacity(1 + instructions.len());
+    ixs.push(compute_budget_ix);
+    ixs.extend_from_slice(&instructions);
+    let transaction =
+        Transaction::new_signed_with_payer(&ixs, Some(&signer.pubkey()), &[&signer], blockhash);
 
     let signature = rpc_client.send_and_confirm_transaction(&transaction)?;
     println!("Transaction signature: {signature}");

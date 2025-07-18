@@ -9,12 +9,13 @@ pub enum EphemeralVrfInstruction {
     Initialize = 0,
     ModifyOracle = 1,
     InitializeOracleQueue = 2,
-    RequestRandomness = 3,
+    RequestHighPriorityRandomness = 3,
     ProvideRandomness = 4,
     DelegateOracleQueue = 5,
     UndelegateOracleQueue = 6,
     ProcessUndelegation = 196,
     CloseOracleQueue = 7,
+    RequestRandomness = 8,
 }
 
 #[repr(C)]
@@ -91,7 +92,7 @@ instruction!(EphemeralVrfInstruction, CloseOracleQueue);
 impl RequestRandomness {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![
-            EphemeralVrfInstruction::RequestRandomness as u8,
+            EphemeralVrfInstruction::RequestHighPriorityRandomness as u8,
             0,
             0,
             0,

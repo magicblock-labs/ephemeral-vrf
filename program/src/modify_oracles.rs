@@ -41,8 +41,10 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     signer_info.is_signer()?;
 
     // Check that the signer is the admin.
+    // The admin is the program upgrade authority, which should be a multi-sig.
     let admin_pubkey =
         load_program_upgrade_authority(&ID, vrf_program_data)?.ok_or(Unauthorized)?;
+
     if !signer_info.key.eq(&admin_pubkey) {
         log(format!(
             "Signer not authorized, expected: {}, got: {}",
@@ -55,10 +57,9 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         .is_writable()?
         .has_seeds(&[ORACLES], &ephemeral_vrf_api::ID)?;
 
-    oracle_data_info.is_writable()?.has_seeds(
-        &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
-        &ephemeral_vrf_api::ID,
-    )?;
+    oracle_data_info
+        .is_writable()?
+        .has_seeds(&[ORACLE_DATA, args.identity.to_bytes().as_ref()], &ID)?;
 
     let oracles_data = oracles_info.try_borrow_data()?;
     let mut oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data)?;
@@ -70,10 +71,10 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
             oracle_data_info,
             system_program,
             signer_info,
-            &ephemeral_vrf_api::ID,
+            &ID,
             &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
         )?;
-        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ID)?;
         oracle_data.vrf_pubkey = args.oracle_pubkey;
         oracle_data.registration_slot = Clock::get()?.slot;
     } else {
@@ -88,9 +89,9 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         oracles.size_with_discriminator(),
     )?;
 
-    let mut oracles_bytes = vec![];
-    oracles.to_bytes_with_discriminator(&mut oracles_bytes)?;
+    let oracles_bytes = oracles.to_bytes_with_discriminator()?;
     let mut oracles_data = oracles_info.try_borrow_mut_data()?;
+
     oracles_data.copy_from_slice(&oracles_bytes);
 
     Ok(())

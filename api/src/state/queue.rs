@@ -1,79 +1,160 @@
-use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator};
-use crate::{impl_to_bytes_with_discriminator_borsh, impl_try_from_bytes_with_discriminator_borsh};
+use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::pubkey::Pubkey;
-use std::collections::HashMap;
+use steel::{account, trace, AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
-/// The account now holds a HashMap keyed by [u8; 32].
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
-pub struct QueueAccount {
-    /// The index of the queue.
+pub const MAX_ACCOUNTS: usize = 5;
+pub const MAX_ARGS_SIZE: usize = 128;
+pub const MAX_QUEUE_ITEMS: usize = 25;
+
+/// Fixed-size QueueAccount with pre-allocated space
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug, Default, Zeroable, Pod)]
+pub struct Queue {
     pub index: u8,
-    /// Each entry is keyed by the `seed` ([u8; 32]) that was previously part of QueueItem.
-    pub items: HashMap<[u8; 32], QueueItem>,
+    pub item_count: u8,
+    pub used_bitmap: MaxQueueItemsBitmap, // 0 = free, 1 = used
+    pub items: MaxQueueItems,
 }
 
-/// Same as before, but you no longer need to rely on `seed` inside QueueItem
-/// if your key is truly the seed. You can either keep or remove it.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
+/// Fixed-size QueueItem with size constraints
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq)]
 pub struct QueueItem {
-    pub callback_discriminator: Vec<u8>,
-    pub callback_program_id: Pubkey,
-    pub callback_accounts_meta: Vec<SerializableAccountMeta>,
-    pub callback_args: Vec<u8>,
+    pub id: [u8; 32],
+    pub callback_discriminator: [u8; 8],
+    pub callback_program_id: [u8; 32],
+    pub callback_accounts_meta: [SerializableAccountMeta; MAX_ACCOUNTS],
+    pub callback_args: CallbackArgs,
     pub slot: u64,
+    pub args_size: u8,
+    pub num_accounts_meta: u8,
+    pub discriminator_size: u8,
+    pub priority_request: u8,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
-pub struct SerializableAccountMeta {
-    pub pubkey: Pubkey,
-    pub is_signer: bool,
-    pub is_writable: bool,
-}
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
+pub struct MaxQueueItems(pub [QueueItem; MAX_QUEUE_ITEMS]);
 
-// -- Account trait impls --
-
-impl AccountWithDiscriminator for QueueAccount {
-    fn discriminator() -> AccountDiscriminator {
-        AccountDiscriminator::Queue
+impl Default for MaxQueueItems {
+    fn default() -> Self {
+        MaxQueueItems(unsafe { std::mem::zeroed() })
     }
 }
 
-/// Estimate the on-chain size of this account, including the 8-byte discriminator.
-/// This is not strictly required by Borsh, but sometimes you want a rough
-/// upper bound for creating the account.
-impl QueueAccount {
-    pub fn size_with_discriminator(&self) -> usize {
-        // 8 bytes for the account discriminator
-        // + 4 bytes for the length of the HashMap (Borsh encodes the map length as u32).
-        let mut size = 8 + 1 + 4;
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
+pub struct MaxQueueItemsBitmap(pub [u8; MAX_QUEUE_ITEMS]);
 
-        // For each key-value pair:
-        for item in self.items.values() {
-            // 32 bytes for the key
-            size += 32;
+impl Default for MaxQueueItemsBitmap {
+    fn default() -> Self {
+        MaxQueueItemsBitmap(unsafe { std::mem::zeroed() })
+    }
+}
 
-            // QueueItem size:
-            // - callback_discriminator: 4 bytes (length) + actual bytes
-            // - callback_program_id: 32 bytes
-            // - callback_accounts_meta: 4 bytes (length) + (34 bytes * count)
-            // - callback_args: 4 bytes (length) + actual bytes
-            // - slot: 8 bytes
-            size += 4
-                + item.callback_discriminator.len()
-                + 32
-                + 4
-                + (item.callback_accounts_meta.len() * 34)
-                + 4
-                + 8
-                + item.callback_args.len();
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
+pub struct CallbackArgs(pub [u8; MAX_ARGS_SIZE]);
+
+impl Default for CallbackArgs {
+    fn default() -> Self {
+        CallbackArgs(unsafe { std::mem::zeroed() })
+    }
+}
+
+impl QueueItem {
+    pub fn account_metas(&self) -> &[SerializableAccountMeta] {
+        &self.callback_accounts_meta[..self.num_accounts_meta as usize]
+    }
+
+    pub fn callback_args(&self) -> &[u8] {
+        &self.callback_args.0[..self.args_size as usize]
+    }
+
+    pub fn callback_discriminator(&self) -> &[u8] {
+        &self.callback_discriminator[..self.discriminator_size as usize]
+    }
+}
+
+#[repr(C, packed)]
+#[derive(
+    Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq, BorshDeserialize, BorshSerialize,
+)]
+pub struct SerializableAccountMeta {
+    pub pubkey: [u8; 32],
+    pub is_signer: u8,
+    pub is_writable: u8,
+}
+
+impl SerializableAccountMeta {
+    pub fn to_account_meta(&self) -> AccountMeta {
+        let pubkey = Pubkey::new_from_array(self.pubkey);
+        let is_signer = self.is_signer != 0;
+        let is_writable = self.is_writable != 0;
+
+        AccountMeta {
+            pubkey,
+            is_signer,
+            is_writable,
+        }
+    }
+}
+
+/// Helper methods for QueueAccount
+impl Queue {
+    pub fn add_item(&mut self, item: QueueItem) -> Result<usize, ProgramError> {
+        for i in 0..MAX_QUEUE_ITEMS {
+            if self.used_bitmap.0[i] == 0 {
+                self.items.0[i] = item;
+                self.used_bitmap.0[i] = 1;
+                self.item_count += 1;
+                return Ok(i);
+            }
+        }
+        Err(EphemeralVrfError::QueueFull.into())
+    }
+
+    pub fn remove_item(&mut self, index: usize) -> Result<QueueItem, ProgramError> {
+        if index >= MAX_QUEUE_ITEMS || self.used_bitmap.0[index] == 0 {
+            return Err(EphemeralVrfError::InvalidQueueIndex.into());
         }
 
-        size
+        let item = self.items.0[index];
+        self.used_bitmap.0[index] = 0;
+        self.item_count -= 1;
+        Ok(item)
+    }
+
+    pub fn iter_items(&self) -> impl Iterator<Item = &QueueItem> {
+        self.items.0.iter().enumerate().filter_map(|(i, item)| {
+            if self.used_bitmap.0[i] == 1 {
+                Some(item)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub fn find_item_by_id(&self, id: &[u8; 32]) -> Option<(usize, &QueueItem)> {
+        for i in 0..MAX_QUEUE_ITEMS {
+            if self.used_bitmap.0[i] == 1 && self.items.0[i].id == *id {
+                return Some((i, &self.items.0[i]));
+            }
+        }
+        None
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.item_count == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.item_count as usize
+    }
+
+    pub fn size_with_discriminator() -> usize {
+        8 + size_of::<Queue>()
     }
 }
 
-// -- Borsh helper macros for (de)serialization with a discriminator --
-
-impl_to_bytes_with_discriminator_borsh!(QueueAccount);
-impl_try_from_bytes_with_discriminator_borsh!(QueueAccount);
+account!(AccountDiscriminator, Queue);

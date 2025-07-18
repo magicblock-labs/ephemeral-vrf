@@ -29,9 +29,8 @@ pub fn process_initialize(accounts: &[AccountInfo<'_>], _data: &[u8]) -> Program
         .has_seeds(&[ORACLES], &ephemeral_vrf_api::ID)?;
     system_program.is_program(&system_program::ID)?;
 
-    let mut oracles_bytes = vec![];
     let oracles = Oracles::default();
-    oracles.to_bytes_with_discriminator(&mut oracles_bytes)?;
+    let oracles_bytes = oracles.to_bytes_with_discriminator()?;
 
     create_pda(
         oracles_info,

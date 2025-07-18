@@ -13,3 +13,4 @@ ephemeral-vrf.workspace = true
 solana-client.workspace = true
 solana-sdk.workspace = true
 tokio.workspace = true
+steel.workspace = true

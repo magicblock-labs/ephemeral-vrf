@@ -1,4 +1,5 @@
 use curve25519_dalek::Scalar;
+use ephemeral_vrf_api::consts::VRF_PREFIX_HASH_TO_SCALAR;
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::{add_ristretto, multiply_ristretto, PodRistrettoPoint};
 use solana_curve25519::scalar::PodScalar;
@@ -101,7 +102,7 @@ fn hash_to_point(input: &[u8]) -> PodRistrettoPoint {
         &PodScalar(Scalar::from_bytes_mod_order(hashed_input.to_bytes()).to_bytes()),
         &RISTRETTO_BASEPOINT_POINT,
     )
-    .unwrap()
+    .expect("Failed to multiply scalar with base point")
 }
 
 /// Convert the input to a scalar using the modulus order of the curve
@@ -110,7 +111,13 @@ fn hash_to_point(input: &[u8]) -> PodRistrettoPoint {
 ///
 /// Requirements: None
 ///
-/// 1. Convert the input bytes to a scalar using the curve's modulus
+/// 1. Hash the input with the VRF prefix
+/// 2. Convert the hash to a scalar using the curve's modulus
 fn hash_to_scalar(input: &[u8; 32]) -> PodScalar {
-    PodScalar(Scalar::from_bytes_mod_order(*input).to_bytes())
+    let hashed_input = hash(
+        [VRF_PREFIX_HASH_TO_SCALAR.to_vec(), input.to_vec()]
+            .concat()
+            .as_slice(),
+    );
+    PodScalar(Scalar::from_bytes_mod_order(hashed_input.to_bytes()).to_bytes())
 }

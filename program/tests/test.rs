@@ -1,6 +1,7 @@
 mod fixtures;
 
 use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_ORACLE};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ephemeral_rollups_sdk::consts::DELEGATION_PROGRAM_ID;
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
@@ -142,8 +143,13 @@ async fn run_test() {
     );
 
     // Submit init oracle queue transaction.
-    let ix = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
+    let tx = Transaction::new_signed_with_payer(
+        &ixs,
+        Some(&payer.pubkey()),
+        &[&payer, &new_oracle_keypair],
+        blockhash,
+    );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 
@@ -154,15 +160,17 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data);
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.items.len(), 0);
+    assert_eq!(oracle_queue.unwrap().item_count, 0);
 
     println!("oracle_data_address: {:?}", oracle_data_pda(&new_oracle).0);
     println!("Oracle data: {:?}", oracle_data_info.data);
     println!("oracle_queue_address: {:?}", oracle_queue_address);
-    println!("Oracle queue data: {:?}", oracle_queue_account.data);
+    println!(
+        "oracle_queue_data (base64): {}",
+        STANDARD.encode(&oracle_queue_account.data)
+    );
 
     // Submit request for randomness transaction.
     let ix = request_randomness(payer.pubkey(), 0);
@@ -177,26 +185,30 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.items.len(), 1);
+    assert_eq!(oracle_queue.len(), 1);
+
+    // Verify cost of the vrf was collected in the oracle queue account.
+    assert_eq!(
+        oracle_queue_account.lamports,
+        banks
+            .get_rent()
+            .await
+            .unwrap()
+            .minimum_balance(oracle_queue_account.data.len())
+            + VRF_HIGH_PRIORITY_LAMPORTS_COST
+    );
 
     // Compute off-chain VRF
-    let vrf_input = oracle_queue
-        .items
-        .iter()
-        .collect::<Vec<_>>()
-        .first()
-        .unwrap()
-        .0;
+    let vrf_input = oracle_queue.iter_items().next().unwrap().clone().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
-        compute_vrf(oracle_vrf_sk, vrf_input);
+        compute_vrf(oracle_vrf_sk, &vrf_input);
 
     // Verify generated randomness is correct.
     let verified = verify_vrf(
         oracle_vrf_pk,
-        vrf_input,
+        &vrf_input,
         output,
         (commitment_base_compressed, commitment_hash_compressed, s),
     );
@@ -207,7 +219,7 @@ async fn run_test() {
         new_oracle,
         oracle_queue_address,
         TEST_CALLBACK_PROGRAM,
-        *vrf_input,
+        vrf_input,
         PodRistrettoPoint(output.to_bytes()),
         PodRistrettoPoint(commitment_base_compressed.to_bytes()),
         PodRistrettoPoint(commitment_hash_compressed.to_bytes()),
@@ -227,10 +239,9 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_account.data).unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.items.len(), 0);
+    assert_eq!(oracle_queue.len(), 0);
     assert_eq!(
         oracle_queue_account.lamports,
         banks
@@ -260,8 +271,13 @@ async fn run_test() {
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
     // Initialize a new oracle queue
-    let ix = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
+    let tx = Transaction::new_signed_with_payer(
+        &ixs,
+        Some(&payer.pubkey()),
+        &[&payer, &new_oracle_keypair],
+        blockhash,
+    );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 

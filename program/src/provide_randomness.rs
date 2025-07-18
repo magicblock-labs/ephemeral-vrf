@@ -1,5 +1,6 @@
 use crate::verify::verify_vrf;
 use ephemeral_vrf_api::prelude::*;
+use ephemeral_vrf_api::ID;
 use solana_program::hash::hash;
 use steel::*;
 
@@ -9,10 +10,9 @@ use steel::*;
 ///
 /// 0. `[signer]` signer - The oracle signer providing randomness
 /// 1. `[]` program_identity_info - Used to allow the vrf-macro program to verify the identity of the oracle program
-/// 1. `[]` oracle_data_info - Oracle data account associated with the signer
-/// 2. `[writable]` oracle_queue_info - Queue storing randomness requests
-/// 3. `[]` callback_program_info - Program to call with the randomness
-/// 4. `[]` system_program_info - System program for resizing accounts
+/// 2. `[]` oracle_data_info - Oracle data account associated with the signer
+/// 3. `[writable]` oracle_queue_info - Queue storing randomness requests
+/// 4. `[]` callback_program_info - Program to call with the randomness
 /// 5. `[varies]` remaining_accounts - Accounts needed for the vrf-macro
 ///
 /// Requirements:
@@ -32,9 +32,9 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Load accounts
     let (
-        [oracle_info, program_identity_info, oracle_data_info, oracle_queue_info, callback_program_info, system_program_info],
+        [oracle_info, program_identity_info, oracle_data_info, oracle_queue_info, callback_program_info],
         remaining_accounts,
-    ) = accounts.split_at(6)
+    ) = accounts.split_at(5)
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
@@ -43,11 +43,19 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     oracle_info.is_signer()?;
 
     // Load oracle data
-    oracle_data_info.has_seeds(
-        &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
-        &ephemeral_vrf_api::ID,
+    oracle_data_info.has_seeds(&[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()], &ID)?;
+    let oracle_data = oracle_data_info.as_account::<Oracle>(&ID)?;
+
+    // Load oracle queue
+    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+    oracle_queue_info.is_writable()?.has_owner(&ID)?.has_seeds(
+        &[
+            QUEUE,
+            oracle_info.key.to_bytes().as_ref(),
+            &[oracle_queue.index],
+        ],
+        &ID,
     )?;
-    let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
 
     let output = &args.output;
     let commitment_base_compressed = &args.commitment_base_compressed;
@@ -65,65 +73,45 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         return Err(EphemeralVrfError::InvalidProof.into());
     }
 
-    // Load and remove oracle item from the queue
-    let mut oracle_queue =
-        QueueAccount::try_from_bytes_with_discriminator(&oracle_queue_info.try_borrow_data()?)?;
-    let item = oracle_queue
-        .items
-        .get(&args.input)
-        .ok_or(EphemeralVrfError::RandomnessRequestNotFound)?
-        .clone();
-    oracle_queue.items.remove(&args.input);
+    let (index, item) = {
+        let (index, item) = oracle_queue
+            .find_item_by_id(&args.input)
+            .ok_or::<ProgramError>(EphemeralVrfError::RandomnessRequestNotFound.into())?;
 
-    let mut oracle_queue_bytes = vec![];
-    oracle_queue.to_bytes_with_discriminator(&mut oracle_queue_bytes)?;
+        // Check that the oracle signer is not in the vrf-macro accounts
+        if item
+            .callback_accounts_meta
+            .iter()
+            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
+        {
+            return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
+        }
 
-    // Resize and serialize oracle queue
-    resize_pda(
-        oracle_info,
-        oracle_queue_info,
-        system_program_info,
-        oracle_queue_bytes.len(),
-    )?;
-    let mut oracle_queue_data = oracle_queue_info.try_borrow_mut_data()?;
-    oracle_queue_data.copy_from_slice(&oracle_queue_bytes);
+        (index, *item)
+    };
 
-    // Don't callback if the request is older than 1 hour and just remove the request
-    if Clock::get()?.slot - item.slot > 3 * 60 * 60 {
-        return Ok(());
-    }
-
-    // Check that the oracle signer is not in the vrf-macro accounts
-    if item
-        .callback_accounts_meta
-        .iter()
-        .any(|acc| acc.pubkey == *oracle_info.key)
-    {
-        return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
-    }
+    // Remove the item from the queue
+    oracle_queue.remove_item(index)?;
 
     // Invoke vrf-macro with randomness
-    callback_program_info.has_address(&item.callback_program_id)?;
+    callback_program_info.has_address(&Pubkey::new_from_array(item.callback_program_id))?;
     let mut accounts_metas = vec![AccountMeta {
         pubkey: *program_identity_info.key,
         is_signer: true,
         is_writable: false,
     }];
-    accounts_metas.extend(item.callback_accounts_meta.iter().map(|acc| AccountMeta {
-        pubkey: acc.pubkey,
-        is_signer: acc.is_signer,
-        is_writable: acc.is_writable,
-    }));
+    accounts_metas.extend(item.account_metas().iter().map(|acc| acc.to_account_meta()));
+
     let mut callback_data = Vec::with_capacity(
-        item.callback_discriminator.len() + output.0.len() + item.callback_args.len(),
+        item.callback_discriminator().len() + output.0.len() + item.callback_args().len(),
     );
-    callback_data.extend_from_slice(&item.callback_discriminator);
+    callback_data.extend_from_slice(item.callback_discriminator());
     let rdn = hash(&output.0);
     callback_data.extend_from_slice(rdn.to_bytes().as_ref());
-    callback_data.extend_from_slice(&item.callback_args);
+    callback_data.extend_from_slice(item.callback_args());
 
     let ix = Instruction {
-        program_id: item.callback_program_id,
+        program_id: Pubkey::new_from_array(item.callback_program_id),
         accounts: accounts_metas,
         data: callback_data,
     };
@@ -136,6 +124,23 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     program_identity_info.has_address(&id.0)?;
     let pda_signer_seeds: &[&[&[u8]]] = &[&[IDENTITY, &[id.1]]];
     solana_program::program::invoke_signed(&ix, &all_accounts, pda_signer_seeds)?;
+
+    // Collect the fees
+    let (mut queue_lamports, mut oracle_lamports) = (
+        oracle_queue_info.try_borrow_mut_lamports()?,
+        oracle_info.try_borrow_mut_lamports()?,
+    );
+    let cost = if item.priority_request == 1 {
+        VRF_HIGH_PRIORITY_LAMPORTS_COST
+    } else {
+        VRF_LAMPORTS_COST
+    };
+    **queue_lamports = (**queue_lamports)
+        .checked_sub(cost)
+        .ok_or(ProgramError::InsufficientFunds)?;
+    **oracle_lamports = (**oracle_lamports)
+        .checked_add(cost)
+        .ok_or(ProgramError::InvalidArgument)?;
 
     Ok(())
 }

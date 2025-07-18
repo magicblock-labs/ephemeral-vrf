@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
+use crate::oracle::client::OracleClient;
 use anyhow::Result;
 use ephemeral_vrf::vrf::{compute_vrf, verify_vrf};
 use ephemeral_vrf_api::{
-    prelude::{provide_randomness, QueueAccount, QueueItem},
+    prelude::{provide_randomness, Queue, QueueItem},
     state::oracle_queue_pda,
     ID as PROGRAM_ID,
 };
@@ -11,11 +12,10 @@ use log::info;
 use solana_client::{rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig};
 use solana_curve25519::{ristretto::PodRistrettoPoint, scalar::PodScalar};
 use solana_sdk::{
-    commitment_config::CommitmentConfig, instruction::AccountMeta, pubkey::Pubkey,
-    signature::Signer, transaction::Transaction,
+    commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer,
+    transaction::Transaction,
 };
-
-use crate::oracle::client::OracleClient;
+use steel::AccountDeserialize;
 
 pub async fn fetch_and_process_program_accounts(
     oracle_client: &Arc<OracleClient>,
@@ -35,8 +35,8 @@ pub async fn fetch_and_process_program_accounts(
     let accounts = rpc_client.get_program_accounts_with_config(&PROGRAM_ID, config)?;
     for (pubkey, acc) in accounts {
         if acc.owner == PROGRAM_ID {
-            if let Ok(queue) = QueueAccount::try_from_bytes_with_discriminator(&acc.data) {
-                process_oracle_queue(oracle_client, rpc_client, &pubkey, &queue).await;
+            if let Ok(queue) = Queue::try_from_bytes(&acc.data) {
+                process_oracle_queue(oracle_client, rpc_client, &pubkey, queue).await;
             }
         }
     }
@@ -47,22 +47,23 @@ pub async fn process_oracle_queue(
     oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
     queue: &Pubkey,
-    oracle_queue: &QueueAccount,
+    oracle_queue: &Queue,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
-        if !oracle_queue.items.is_empty() {
+        if oracle_queue.item_count > 0 {
             info!(
                 "Processing queue: {}, with len: {}",
-                queue,
-                oracle_queue.items.len()
+                queue, oracle_queue.item_count
             );
         }
 
-        for (input_seed, item) in oracle_queue.items.iter() {
+        for item in oracle_queue.iter_items() {
+            // Check if this slot has a valid item
+            let input_seed = item.id;
             let mut attempts = 0;
             while attempts < 5 {
-                match ProcessableItem(item.clone())
-                    .process_item(oracle_client, rpc_client, input_seed, queue)
+                match ProcessableItem(*item)
+                    .process_item(oracle_client, rpc_client, &input_seed, queue)
                     .await
                 {
                     Ok(signature) => {
@@ -103,7 +104,7 @@ impl ProcessableItem {
         let mut ix = provide_randomness(
             oracle_client.keypair.pubkey(),
             *queue,
-            self.0.callback_program_id,
+            Pubkey::new_from_array(self.0.callback_program_id),
             *vrf_input,
             PodRistrettoPoint(output.to_bytes()),
             PodRistrettoPoint(commitment_base.to_bytes()),
@@ -111,20 +112,24 @@ impl ProcessableItem {
             PodScalar(s.to_bytes()),
         );
 
-        ix.accounts
-            .extend(self.0.callback_accounts_meta.iter().map(|a| AccountMeta {
-                pubkey: a.pubkey,
-                is_signer: a.is_signer,
-                is_writable: a.is_writable,
-            }));
+        ix.accounts.extend(
+            self.0
+                .callback_accounts_meta
+                .iter()
+                .map(|a| a.to_account_meta()),
+        );
 
         let blockhash = rpc_client
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
             .0;
+        let budget = match self.0.priority_request {
+            1 => 200_000,
+            _ => 180_000,
+        };
         let tx = Transaction::new_signed_with_payer(
             &[
                 solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(
-                    200_000,
+                    budget,
                 ),
                 ix,
             ],
