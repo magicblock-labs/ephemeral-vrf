@@ -3,6 +3,7 @@ use ephemeral_vrf_api::ID;
 use solana_program::hash::hashv;
 use solana_program::program::invoke;
 use solana_program::system_instruction;
+use solana_program::sysvar::slot_hashes;
 use steel::*;
 
 /// Process a request for randomness
@@ -53,6 +54,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         .is_signer()?;
 
     // Load slot and slothash
+    slothashes_account_info.is_sysvar(&slot_hashes::id())?;
     let slothash: [u8; 32] = slothashes_account_info.try_borrow_data()?[16..48]
         .try_into()
         .map_err(|_| ProgramError::UnsupportedSysvar)?;

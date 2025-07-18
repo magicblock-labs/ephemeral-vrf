@@ -102,7 +102,7 @@ fn hash_to_point(input: &[u8]) -> PodRistrettoPoint {
         &PodScalar(Scalar::from_bytes_mod_order(hashed_input.to_bytes()).to_bytes()),
         &RISTRETTO_BASEPOINT_POINT,
     )
-    .unwrap()
+    .expect("Failed to multiply scalar with base point")
 }
 
 /// Convert the input to a scalar using the modulus order of the curve

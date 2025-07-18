@@ -68,7 +68,6 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Load oracle queue
     let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
-    // Check that the oracle signer is not in the vrf-macro accounts
     let (index, item) = {
         let (index, item) = oracle_queue
             .find_item_by_id(&args.input)

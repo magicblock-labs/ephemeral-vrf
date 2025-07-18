@@ -1,6 +1,7 @@
 mod fixtures;
 
 use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_ORACLE};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ephemeral_rollups_sdk::consts::DELEGATION_PROGRAM_ID;
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
@@ -161,6 +162,10 @@ async fn run_test() {
     println!("oracle_data_address: {:?}", oracle_data_pda(&new_oracle).0);
     println!("Oracle data: {:?}", oracle_data_info.data);
     println!("oracle_queue_address: {:?}", oracle_queue_address);
+    println!(
+        "oracle_queue_data (base64): {}",
+        STANDARD.encode(&oracle_queue_account.data)
+    );
 
     // Submit request for randomness transaction.
     let ix = request_randomness(payer.pubkey(), 0);
