@@ -76,7 +76,7 @@ pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> V
             program_id: ID,
             accounts: vec![
                 AccountMeta::new(signer, true),
-                AccountMeta::new_readonly(identity, false),
+                AccountMeta::new_readonly(identity, true), // SECURITY: Oracle must be signer to prevent unauthorized queue creation
                 AccountMeta::new_readonly(oracle_data_pda(&identity).0, false),
                 AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
                 AccountMeta::new_readonly(system_program::ID, false),

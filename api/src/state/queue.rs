@@ -37,7 +37,7 @@ pub struct MaxQueueItems(pub [QueueItem; MAX_QUEUE_ITEMS]);
 
 impl Default for MaxQueueItems {
     fn default() -> Self {
-        MaxQueueItems([QueueItem::default(); MAX_QUEUE_ITEMS])
+        MaxQueueItems(unsafe { std::mem::zeroed() })
     }
 }
 
@@ -47,7 +47,7 @@ pub struct MaxQueueItemsBitmap(pub [u8; MAX_QUEUE_ITEMS]);
 
 impl Default for MaxQueueItemsBitmap {
     fn default() -> Self {
-        MaxQueueItemsBitmap([0u8; MAX_QUEUE_ITEMS])
+        MaxQueueItemsBitmap(unsafe { std::mem::zeroed() })
     }
 }
 
@@ -57,7 +57,7 @@ pub struct CallbackArgs(pub [u8; MAX_ARGS_SIZE]);
 
 impl Default for CallbackArgs {
     fn default() -> Self {
-        CallbackArgs([0u8; MAX_ARGS_SIZE])
+        CallbackArgs(unsafe { std::mem::zeroed() })
     }
 }
 

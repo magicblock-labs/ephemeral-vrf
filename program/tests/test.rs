@@ -144,7 +144,12 @@ async fn run_test() {
 
     // Submit init oracle queue transaction.
     let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
-    let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
+    let tx = Transaction::new_signed_with_payer(
+        &ixs,
+        Some(&payer.pubkey()),
+        &[&payer, &new_oracle_keypair],
+        blockhash,
+    );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 
@@ -267,7 +272,12 @@ async fn run_test() {
 
     // Initialize a new oracle queue
     let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
-    let tx = Transaction::new_signed_with_payer(&ixs, Some(&payer.pubkey()), &[&payer], blockhash);
+    let tx = Transaction::new_signed_with_payer(
+        &ixs,
+        Some(&payer.pubkey()),
+        &[&payer, &new_oracle_keypair],
+        blockhash,
+    );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 

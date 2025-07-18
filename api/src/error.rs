@@ -13,7 +13,7 @@ pub enum EphemeralVrfError {
     InvalidCallbackAccounts = 3,
     #[error("Queue is full and cannot accept more items")]
     QueueFull = 4,
-    #[error("Invalid queue index provided")]
+    #[error("Invalid queue index")]
     InvalidQueueIndex = 5,
     #[error("Invalid account data")]
     InvalidAccountData = 6,
@@ -25,6 +25,8 @@ pub enum EphemeralVrfError {
     OracleNotRegistered = 9,
     #[error("Oracle is not authorized")]
     OracleNotAuthorized = 10,
+    #[error("Queue is not empty - cannot close queue with pending requests")]
+    QueueNotEmpty = 11,
 }
 
 error!(EphemeralVrfError);

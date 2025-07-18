@@ -30,6 +30,11 @@ pub fn process_close_oracle_queue(accounts: &[AccountInfo], data: &[u8]) -> Prog
     // Parse args.
     let args = CloseOracleQueue::try_from_bytes(data)?;
 
+    // SECURITY: Validate queue index is within reasonable bounds
+    if args.index > 100 {
+        return Err(EphemeralVrfError::InvalidQueueIndex.into());
+    }
+
     // Load accounts.
     let [oracle_info, oracle_data_info, oracle_queue_info] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -51,6 +56,12 @@ pub fn process_close_oracle_queue(accounts: &[AccountInfo], data: &[u8]) -> Prog
             &[QUEUE, oracle_info.key.to_bytes().as_ref(), &[args.index]],
             &ephemeral_vrf_api::ID,
         )?;
+
+    // SECURITY: Ensure queue is empty before closure to prevent loss of pending requests
+    let queue = oracle_queue_info.as_account::<Queue>(&ephemeral_vrf_api::ID)?;
+    if !queue.is_empty() {
+        return Err(EphemeralVrfError::QueueNotEmpty.into());
+    }
 
     close_account(oracle_queue_info, oracle_info)?;
 

@@ -43,11 +43,19 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     oracle_info.is_signer()?;
 
     // Load oracle data
-    oracle_data_info.has_seeds(
-        &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
-        &ephemeral_vrf_api::ID,
-    )?;
+    oracle_data_info.has_seeds(&[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()], &ID)?;
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ID)?;
+
+    // Load oracle queue
+    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+    oracle_queue_info.is_writable()?.has_owner(&ID)?.has_seeds(
+        &[
+            QUEUE,
+            oracle_info.key.to_bytes().as_ref(),
+            &[oracle_queue.index],
+        ],
+        &ID,
+    )?;
 
     let output = &args.output;
     let commitment_base_compressed = &args.commitment_base_compressed;
@@ -64,9 +72,6 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     if !verified {
         return Err(EphemeralVrfError::InvalidProof.into());
     }
-
-    // Load oracle queue
-    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
     let (index, item) = {
         let (index, item) = oracle_queue

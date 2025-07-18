@@ -34,6 +34,11 @@ use steel::*;
 pub fn process_delegate_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     let args = DelegateOracleQueue::try_from_bytes(data)?;
 
+    // SECURITY: Validate queue index is within reasonable bounds
+    if args.index > 100 {
+        return Err(EphemeralVrfError::InvalidQueueIndex.into());
+    }
+
     // Load accounts.
     let [authority_info, oracle_queue_info, buffer, delegation_record, delegation_metadata, delegation_program, owner_program, system_program] =
         accounts
