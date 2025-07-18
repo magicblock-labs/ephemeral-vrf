@@ -38,12 +38,6 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     // Parse args
     let args = InitializeOracleQueue::try_from_bytes(data)?;
 
-    // SECURITY: Validate queue index is within reasonable bounds
-    // While u8 provides natural bounds (0-255), we limit to a smaller range for security
-    if args.index > 100 {
-        return Err(EphemeralVrfError::InvalidQueueIndex.into());
-    }
-
     // Destructure and validate accounts
     let [signer_info, oracle_info, oracle_data_info, oracle_queue_info, system_program] = accounts
     else {
@@ -51,8 +45,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     };
     signer_info.is_signer()?;
 
-    // SECURITY: Only the oracle owner should be able to initialize their queue
-    // The oracle must be the signer to prevent unauthorized queue creation
+    // Oracle must be the signer to prevent unauthorized queue creation
     oracle_info.is_signer()?;
 
     let oracle_key_bytes = oracle_info.key.to_bytes();
@@ -79,7 +72,6 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         }
     };
 
-    // SECURITY: Protect against integer underflow in slot calculation
     if current_slot < oracle_data.registration_slot {
         log(format!(
             "Invalid: current slot {} is before registration slot {}",
