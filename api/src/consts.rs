@@ -15,7 +15,7 @@ pub const VRF_PREFIX_CHALLENGE: &[u8] = b"VRF-Ephem-Challenge";
 pub const VRF_PREFIX_HASH_TO_POINT: &[u8] = b"VRF-Ephem-HashToPoint";
 pub const VRF_PREFIX_HASH_TO_SCALAR: &[u8] = b"VRF-Ephem-HashToScalar";
 
-pub const VRF_LAMPORTS_COST: u64 = 300000;
+pub const VRF_LAMPORTS_COST: u64 = 800000;
 
 pub const RISTRETTO_BASEPOINT_POINT: PodRistrettoPoint = PodRistrettoPoint([
     226, 242, 174, 10, 106, 188, 78, 113, 168, 132, 169, 97, 197, 0, 81, 95, 88, 227, 11, 106, 165,
