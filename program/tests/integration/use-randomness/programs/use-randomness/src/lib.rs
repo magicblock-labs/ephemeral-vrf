@@ -7,8 +7,10 @@ use anchor_lang::solana_program::program::invoke_signed;
 use anchor_lang::solana_program::sysvar::slot_hashes;
 use ephemeral_vrf_sdk::anchor::{vrf, VrfProgram};
 use ephemeral_vrf_sdk::consts::IDENTITY;
-use ephemeral_vrf_sdk::instructions::create_request_randomness_ix;
 use ephemeral_vrf_sdk::instructions::RequestRandomnessParams;
+use ephemeral_vrf_sdk::instructions::{
+    create_request_randomness_ix, create_request_regular_randomness_ix,
+};
 use ephemeral_vrf_sdk::rnd::{random_bool, random_u32, random_u8_with_range};
 
 declare_id!("CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi");
@@ -50,6 +52,24 @@ pub mod use_randomness {
     ) -> Result<()> {
         msg!("Generating a random number");
         let ix = create_request_randomness_ix(RequestRandomnessParams {
+            payer: ctx.accounts.payer.key(),
+            oracle_queue: ctx.accounts.oracle_queue.key(),
+            callback_program_id: crate::ID,
+            callback_discriminator: ConsumeRandomness::DISCRIMINATOR.to_vec(),
+            caller_seed: hash(&[client_seed]).to_bytes(),
+            ..Default::default()
+        });
+        ctx.accounts
+            .invoke_signed_vrf(&ctx.accounts.payer.to_account_info(), &ix)?;
+        Ok(())
+    }
+
+    pub fn cheaper_request_randomness(
+        ctx: Context<RequestRandomnessSimplerCtx>,
+        client_seed: u8,
+    ) -> Result<()> {
+        msg!("Generating a random number");
+        let ix = create_request_regular_randomness_ix(RequestRandomnessParams {
             payer: ctx.accounts.payer.key(),
             oracle_queue: ctx.accounts.oracle_queue.key(),
             callback_program_id: crate::ID,

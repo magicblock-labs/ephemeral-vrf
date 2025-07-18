@@ -197,7 +197,7 @@ async fn run_test() {
             .await
             .unwrap()
             .minimum_balance(oracle_queue_account.data.len())
-            + VRF_LAMPORTS_COST
+            + VRF_HIGH_PRIORITY_LAMPORTS_COST
     );
 
     // Compute off-chain VRF

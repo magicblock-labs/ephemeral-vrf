@@ -22,11 +22,7 @@ pub fn create_request_randomness_ix(
         accounts: vec![
             solana_program::instruction::AccountMeta::new(params.payer, true),
             solana_program::instruction::AccountMeta::new_readonly(
-                ::solana_program::pubkey::Pubkey::find_program_address(
-                    &[consts::IDENTITY],
-                    &params.callback_program_id,
-                )
-                .0,
+                Pubkey::find_program_address(&[consts::IDENTITY], &params.callback_program_id).0,
                 true,
             ),
             solana_program::instruction::AccountMeta::new(params.oracle_queue, false),
@@ -48,4 +44,12 @@ pub fn create_request_randomness_ix(
         }
         .to_bytes(),
     }
+}
+
+pub fn create_request_regular_randomness_ix(
+    params: RequestRandomnessParams,
+) -> solana_program::instruction::Instruction {
+    let mut ix = create_request_randomness_ix(params);
+    ix.data[0] = 8;
+    ix
 }

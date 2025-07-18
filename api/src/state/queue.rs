@@ -29,6 +29,7 @@ pub struct QueueItem {
     pub args_size: u8,
     pub num_accounts_meta: u8,
     pub discriminator_size: u8,
+    pub priority_request: u8,
 }
 
 #[repr(transparent)]

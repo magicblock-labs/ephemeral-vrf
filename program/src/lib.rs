@@ -36,7 +36,12 @@ pub fn process_instruction(
         EphemeralVrfInstruction::InitializeOracleQueue => {
             process_initialize_oracle_queue(accounts, data)?
         }
-        EphemeralVrfInstruction::RequestRandomness => process_request_randomness(accounts, data)?,
+        EphemeralVrfInstruction::RequestHighPriorityRandomness => {
+            process_request_randomness(accounts, data, true)?
+        }
+        EphemeralVrfInstruction::RequestRandomness => {
+            process_request_randomness(accounts, data, false)?
+        }
         EphemeralVrfInstruction::ProvideRandomness => process_provide_randomness(accounts, data)?,
         EphemeralVrfInstruction::DelegateOracleQueue => {
             process_delegate_oracle_queue(accounts, data)?

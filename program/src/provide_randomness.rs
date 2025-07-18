@@ -130,11 +130,16 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         oracle_queue_info.try_borrow_mut_lamports()?,
         oracle_info.try_borrow_mut_lamports()?,
     );
+    let cost = if item.priority_request == 1 {
+        VRF_HIGH_PRIORITY_LAMPORTS_COST
+    } else {
+        VRF_LAMPORTS_COST
+    };
     **queue_lamports = (**queue_lamports)
-        .checked_sub(VRF_LAMPORTS_COST)
+        .checked_sub(cost)
         .ok_or(ProgramError::InsufficientFunds)?;
     **oracle_lamports = (**oracle_lamports)
-        .checked_add(VRF_LAMPORTS_COST)
+        .checked_add(cost)
         .ok_or(ProgramError::InvalidArgument)?;
 
     Ok(())

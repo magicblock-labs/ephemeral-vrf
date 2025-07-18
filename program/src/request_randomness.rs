@@ -35,7 +35,11 @@ use steel::*;
 /// 5. Insert the request into the oracle queue
 /// 6. Resize the oracle queue PDA if needed
 /// 7. Update the oracle queue data
-pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
+pub fn process_request_randomness(
+    accounts: &[AccountInfo<'_>],
+    data: &[u8],
+    high_priority: bool,
+) -> ProgramResult {
     let args = RequestRandomness::try_from_bytes(data)?;
 
     // Load accounts
@@ -100,14 +104,20 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         args_size: args.callback_args.len() as u8,
         num_accounts_meta: args.callback_accounts_metas.len() as u8,
         discriminator_size: args.callback_discriminator.len() as u8,
+        priority_request: high_priority as u8,
     };
 
     // Add the item to the queue
     oracle_queue.add_item(item)?;
 
     // Transfer request cost to the queue PDA
+    let cost = if high_priority {
+        VRF_HIGH_PRIORITY_LAMPORTS_COST
+    } else {
+        VRF_LAMPORTS_COST
+    };
     invoke(
-        &system_instruction::transfer(signer_info.key, oracle_queue_info.key, VRF_LAMPORTS_COST),
+        &system_instruction::transfer(signer_info.key, oracle_queue_info.key, cost),
         &[
             signer_info.clone(),
             oracle_queue_info.clone(),

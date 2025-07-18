@@ -63,7 +63,11 @@ pub fn compute_vrf(
     let mut okm = [0u8; 64];
     hkdf.expand(b"VRF-Nonce", &mut okm)
         .expect("HKDF expansion failed");
-    let k = Scalar::from_bytes_mod_order(okm[..32].try_into().expect("Failed to convert HKDF output to scalar - invalid 32-byte slice"));
+    let k = Scalar::from_bytes_mod_order(
+        okm[..32]
+            .try_into()
+            .expect("Failed to convert HKDF output to scalar - invalid 32-byte slice"),
+    );
 
     // Commitments: one for basepoint G, one for hashed point h
     let commitment_base = k * RISTRETTO_BASEPOINT_POINT;

@@ -533,17 +533,17 @@ dependencies = [
 
 [[package]]
 name = "ephemeral-vrf-sdk"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "anchor-lang",
- "borsh 1.5.7",
+ "borsh 0.10.4",
  "ephemeral-vrf-sdk-vrf-macro",
  "solana-program",
 ]
 
 [[package]]
 name = "ephemeral-vrf-sdk-vrf-macro"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",

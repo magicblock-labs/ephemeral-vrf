@@ -122,10 +122,14 @@ impl ProcessableItem {
         let blockhash = rpc_client
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
             .0;
+        let budget = match self.0.priority_request {
+            1 => 200_000,
+            _ => 180_000,
+        };
         let tx = Transaction::new_signed_with_payer(
             &[
                 solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(
-                    200_000,
+                    budget,
                 ),
                 ix,
             ],
