@@ -1,6 +1,8 @@
 use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::ID;
 use solana_program::hash::hashv;
+use solana_program::program::invoke;
+use solana_program::system_instruction;
 use steel::*;
 
 /// Process a request for randomness
@@ -36,7 +38,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let args = RequestRandomness::try_from_bytes(data)?;
 
     // Load accounts
-    let [signer_info, program_identity_info, oracle_queue_info, _system_program_info, slothashes_account_info] =
+    let [signer_info, program_identity_info, oracle_queue_info, system_program_info, slothashes_account_info] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -73,7 +75,7 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         || args.callback_accounts_metas.len() > MAX_ACCOUNTS
         || args.callback_discriminator.len() > 8
     {
-        return Err(ProgramError::InvalidArgument);
+        return Err(ProgramError::from(EphemeralVrfError::ArgumentSizeTooLarge));
     }
 
     let mut callback_accounts_meta = [SerializableAccountMeta::default(); MAX_ACCOUNTS];
@@ -100,6 +102,16 @@ pub fn process_request_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Add the item to the queue
     oracle_queue.add_item(item)?;
+
+    // Transfer request cost to the queue PDA
+    invoke(
+        &system_instruction::transfer(signer_info.key, oracle_queue_info.key, VRF_LAMPORTS_COST),
+        &[
+            signer_info.clone(),
+            oracle_queue_info.clone(),
+            system_program_info.clone(),
+        ],
+    )?;
 
     Ok(())
 }

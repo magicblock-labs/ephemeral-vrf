@@ -121,5 +121,17 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let pda_signer_seeds: &[&[&[u8]]] = &[&[IDENTITY, &[id.1]]];
     solana_program::program::invoke_signed(&ix, &all_accounts, pda_signer_seeds)?;
 
+    // Collect the fees
+    let (mut queue_lamports, mut oracle_lamports) = (
+        oracle_queue_info.try_borrow_mut_lamports()?,
+        oracle_info.try_borrow_mut_lamports()?,
+    );
+    **queue_lamports = (**queue_lamports)
+        .checked_sub(VRF_LAMPORTS_COST)
+        .ok_or(ProgramError::InsufficientFunds)?;
+    **oracle_lamports = (**oracle_lamports)
+        .checked_add(VRF_LAMPORTS_COST)
+        .ok_or(ProgramError::InvalidArgument)?;
+
     Ok(())
 }

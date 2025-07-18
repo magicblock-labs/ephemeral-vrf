@@ -1,6 +1,6 @@
 use curve25519_dalek::Scalar;
-use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::consts::VRF_PREFIX_HASH_TO_SCALAR;
+use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::{add_ristretto, multiply_ristretto, PodRistrettoPoint};
 use solana_curve25519::scalar::PodScalar;
 use solana_program::hash::hash;

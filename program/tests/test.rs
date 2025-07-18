@@ -179,6 +179,17 @@ async fn run_test() {
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.len(), 1);
 
+    // Verify cost of the vrf was collected in the oracle queue account.
+    assert_eq!(
+        oracle_queue_account.lamports,
+        banks
+            .get_rent()
+            .await
+            .unwrap()
+            .minimum_balance(oracle_queue_account.data.len())
+            + VRF_LAMPORTS_COST
+    );
+
     // Compute off-chain VRF
     let vrf_input = oracle_queue.iter_items().next().unwrap().clone().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =

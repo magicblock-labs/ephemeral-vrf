@@ -1,10 +1,10 @@
-use crate::prelude::AccountDiscriminator;
+use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
 use steel::{account, trace, AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
 pub const MAX_ACCOUNTS: usize = 5;
 pub const MAX_ARGS_SIZE: usize = 128;
-pub const MAX_QUEUE_ITEMS: usize = 25; // TODO(GabrielePicco): Increase once we can delegate account larger than 10kb
+pub const MAX_QUEUE_ITEMS: usize = 25;
 
 /// Fixed-size QueueAccount with pre-allocated space
 #[repr(C, packed)]
@@ -110,12 +110,12 @@ impl Queue {
                 return Ok(i);
             }
         }
-        Err(ProgramError::AccountDataTooSmall)
+        Err(EphemeralVrfError::QueueFull.into())
     }
 
     pub fn remove_item(&mut self, index: usize) -> Result<QueueItem, ProgramError> {
         if index >= MAX_QUEUE_ITEMS || self.used_bitmap.0[index] == 0 {
-            return Err(ProgramError::InvalidArgument);
+            return Err(EphemeralVrfError::InvalidQueueIndex.into());
         }
 
         let item = self.items.0[index];

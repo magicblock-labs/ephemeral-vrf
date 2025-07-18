@@ -1,4 +1,6 @@
-use crate::consts::{VRF_PREFIX_CHALLENGE, VRF_PREFIX_HASH_TO_POINT, VRF_PREFIX_HASH_TO_SCALAR, VRF_PREFIX_NONCE};
+use crate::consts::{
+    VRF_PREFIX_CHALLENGE, VRF_PREFIX_HASH_TO_POINT, VRF_PREFIX_HASH_TO_SCALAR, VRF_PREFIX_NONCE,
+};
 use curve25519_dalek::constants::{RISTRETTO_BASEPOINT_POINT, RISTRETTO_BASEPOINT_TABLE};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;

@@ -3,13 +3,13 @@ use crate::instruction::ConsumeRandomness;
 use anchor_lang::prelude::borsh::BorshDeserialize;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hash;
+use anchor_lang::solana_program::program::invoke_signed;
 use anchor_lang::solana_program::sysvar::slot_hashes;
 use ephemeral_vrf_sdk::anchor::{vrf, VrfProgram};
-use ephemeral_vrf_sdk::instructions::create_request_randomness_ix;
-use ephemeral_vrf_sdk::rnd::{random_u32, random_u8_with_range, random_bool};
 use ephemeral_vrf_sdk::consts::IDENTITY;
+use ephemeral_vrf_sdk::instructions::create_request_randomness_ix;
 use ephemeral_vrf_sdk::instructions::RequestRandomnessParams;
-use anchor_lang::solana_program::program::invoke_signed;
+use ephemeral_vrf_sdk::rnd::{random_bool, random_u32, random_u8_with_range};
 
 declare_id!("CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi");
 
@@ -57,7 +57,8 @@ pub mod use_randomness {
             caller_seed: hash(&[client_seed]).to_bytes(),
             ..Default::default()
         });
-        ctx.accounts.invoke_signed_vrf(&ctx.accounts.payer.to_account_info(), &ix)?;
+        ctx.accounts
+            .invoke_signed_vrf(&ctx.accounts.payer.to_account_info(), &ix)?;
         Ok(())
     }
 
@@ -76,7 +77,10 @@ pub mod use_randomness {
         );
         // We can safely consume the randomness
         msg!("Consuming random u32: {:?}", random_u32(&randomness));
-        msg!("Consuming random u8 (range 1-6): {:?}", random_u8_with_range(&randomness, 1, 6));
+        msg!(
+            "Consuming random u8 (range 1-6): {:?}",
+            random_u8_with_range(&randomness, 1, 6)
+        );
         msg!("Consuming random bool: {:?}", random_bool(&randomness));
         Ok(())
     }
