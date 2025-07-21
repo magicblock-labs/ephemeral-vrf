@@ -1,5 +1,5 @@
-use crate::verify::verify_vrf;
 use ephemeral_vrf_api::prelude::*;
+use ephemeral_vrf_api::verify::verify_vrf;
 use ephemeral_vrf_api::ID;
 use solana_program::hash::hash;
 use steel::*;

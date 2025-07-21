@@ -1,6 +1,6 @@
+use crate::consts::VRF_PREFIX_HASH_TO_SCALAR;
+use crate::prelude::*;
 use curve25519_dalek::Scalar;
-use ephemeral_vrf_api::consts::VRF_PREFIX_HASH_TO_SCALAR;
-use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::{add_ristretto, multiply_ristretto, PodRistrettoPoint};
 use solana_curve25519::scalar::PodScalar;
 use solana_program::hash::hash;
@@ -17,7 +17,7 @@ use solana_program::hash::hash;
 /// 2. Recompute the challenge scalar
 /// 3. Verify the Schnorr proof for the base point
 /// 4. Verify the Schnorr-like proof for the hash point
-pub(crate) fn verify_vrf(
+pub fn verify_vrf(
     pk: &PodRistrettoPoint,
     input: &[u8; 32],
     output_compressed: &PodRistrettoPoint,

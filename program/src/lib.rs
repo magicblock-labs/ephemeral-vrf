@@ -8,7 +8,6 @@ mod process_undelegation;
 mod provide_randomness;
 mod request_randomness;
 mod undelegate_oracle_queue;
-mod verify;
 
 use close_oracle_queue::*;
 use delegate_oracle_queue::*;

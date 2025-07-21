@@ -5,6 +5,7 @@ pub mod loaders;
 pub mod pda;
 pub mod sdk;
 pub mod state;
+pub mod verify;
 
 pub mod prelude {
     pub use crate::consts::*;
