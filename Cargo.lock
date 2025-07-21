@@ -1707,6 +1707,7 @@ dependencies = [
  "bincode",
  "borsh 0.10.4",
  "bytemuck",
+ "curve25519-dalek 4.1.3",
  "ephemeral-rollups-sdk",
  "num_enum",
  "solana-curve25519",
