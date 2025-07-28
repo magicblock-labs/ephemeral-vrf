@@ -60,7 +60,7 @@ pub struct ProvideRandomness {
     pub output: PodRistrettoPoint,
     pub commitment_base_compressed: PodRistrettoPoint,
     pub commitment_hash_compressed: PodRistrettoPoint,
-    pub s: PodScalar,
+    pub scalar: PodScalar,
 }
 
 #[repr(C)]

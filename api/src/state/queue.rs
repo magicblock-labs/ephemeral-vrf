@@ -1,5 +1,6 @@
 use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
+use std::mem::size_of;
 use steel::{account, trace, AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
 pub const MAX_ACCOUNTS: usize = 5;
@@ -150,6 +151,15 @@ impl Queue {
 
     pub fn len(&self) -> usize {
         self.item_count as usize
+    }
+
+    pub fn get_insertion_index(&self) -> Result<usize, ProgramError> {
+        for i in 0..MAX_QUEUE_ITEMS {
+            if self.used_bitmap.0[i] == 0 {
+                return Ok(i);
+            }
+        }
+        Err(EphemeralVrfError::QueueFull.into())
     }
 
     pub fn size_with_discriminator() -> usize {
