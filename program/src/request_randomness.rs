@@ -67,7 +67,7 @@ pub fn process_request_randomness(
         .map_err(|_| ProgramError::UnsupportedSysvar)?;
     let slot = Clock::get()?.slot;
     let time = Clock::get()?.unix_timestamp;
-    let idx = oracle_queue.get_insertion_index()? + 1;
+    let idx = oracle_queue.get_insertion_index()?;
 
     let combined_hash = hashv(&[
         &args.caller_seed,
