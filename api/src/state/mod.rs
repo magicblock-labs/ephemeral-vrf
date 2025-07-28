@@ -6,6 +6,7 @@ mod queue;
 pub use oracle::*;
 pub use oracles::*;
 pub use queue::*;
+use solana_program::pubkey;
 
 use steel::*;
 
@@ -33,14 +34,16 @@ pub trait AccountWithDiscriminator {
 
 /// Fetch PDA of the oracles account.
 pub fn oracles_pda() -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[ORACLES], &crate::id())
+    //Pubkey::find_program_address(&[ORACLES], &crate::id()) ->
+    (pubkey!("3ctxDejjAY6YGt7rNUUGaKTwvaTaRvwSwRo2fJQqcqWA"), 255)
 }
 pub fn oracle_data_pda(identity: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[ORACLE_DATA, identity.to_bytes().as_slice()], &crate::id())
 }
 
 pub fn program_identity_pda() -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[IDENTITY], &crate::id())
+    //Pubkey::find_program_address(&[IDENTITY], &crate::id()) ->
+    (pubkey!("9irBy75QS2BN81FUgXuHcjqceJJRuc9oDkAe8TKVvvAw"), 254)
 }
 
 /// Fetch PDA of the queue account.

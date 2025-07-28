@@ -113,7 +113,7 @@ pub fn provide_randomness(
             output,
             commitment_base_compressed,
             commitment_hash_compressed,
-            s,
+            scalar: s,
         }
         .to_bytes(),
     }

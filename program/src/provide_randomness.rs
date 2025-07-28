@@ -60,7 +60,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let output = &args.output;
     let commitment_base_compressed = &args.commitment_base_compressed;
     let commitment_hash_compressed = &args.commitment_hash_compressed;
-    let s = &args.s;
+    let s = &args.scalar;
 
     // Verify proof
     let verified = verify_vrf(

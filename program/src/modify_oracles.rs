@@ -77,9 +77,11 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ID)?;
         oracle_data.vrf_pubkey = args.oracle_pubkey;
         oracle_data.registration_slot = Clock::get()?.slot;
-    } else {
+    } else if args.operation == 1 {
         oracles.oracles.retain(|oracle| oracle.ne(&args.identity));
         close_account(oracle_data_info, signer_info)?;
+    } else {
+        return Err(ProgramError::InvalidArgument);
     }
 
     resize_pda(

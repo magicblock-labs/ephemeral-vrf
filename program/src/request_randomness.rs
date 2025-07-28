@@ -57,6 +57,9 @@ pub fn process_request_randomness(
         .has_seeds(&[IDENTITY], &args.callback_program_id)?
         .is_signer()?;
 
+    // Load oracle queue
+    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+
     // Load slot and slothash
     slothashes_account_info.is_sysvar(&slot_hashes::id())?;
     let slothash: [u8; 32] = slothashes_account_info.try_borrow_data()?[16..48]
@@ -64,6 +67,7 @@ pub fn process_request_randomness(
         .map_err(|_| ProgramError::UnsupportedSysvar)?;
     let slot = Clock::get()?.slot;
     let time = Clock::get()?.unix_timestamp;
+    let idx = oracle_queue.get_insertion_index()? + 1;
 
     let combined_hash = hashv(&[
         &args.caller_seed,
@@ -72,9 +76,8 @@ pub fn process_request_randomness(
         &args.callback_discriminator,
         &args.callback_program_id.to_bytes(),
         &time.to_le_bytes(),
+        &idx.to_le_bytes(),
     ]);
-
-    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
 
     // Check limit for the request
     if args.callback_args.len() > MAX_ARGS_SIZE

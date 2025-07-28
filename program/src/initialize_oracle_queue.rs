@@ -4,6 +4,7 @@ use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::ID;
 use solana_program::msg;
 use steel::*;
+const MAX_EXTRA_BYTES: usize = 10_240;
 
 /// Process the initialization of the Oracle queue
 ///
@@ -25,7 +26,7 @@ use steel::*;
 ///
 /// Requirements:
 ///
-/// - The payer (account 0) must be a signer.
+/// - The payer (account 0) mus be a signer.
 /// - The Oracle data account (account 2) must have the correct seeds ([ORACLE_DATA, oracle.key]).
 /// - The Oracle queue account (account 3) must be empty and use the correct seeds ([QUEUE, oracle.key, index]).
 /// - The Oracle must have been registered for at least 200 slots.
@@ -68,11 +69,13 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         }
         #[cfg(feature = "test-sbf")]
         {
-            500
+            500u64
         }
     };
 
-    if current_slot < oracle_data.registration_slot {
+    let slots_since_registration = current_slot.saturating_sub(oracle_data.registration_slot);
+
+    if slots_since_registration == 0 {
         log(format!(
             "Invalid: current slot {} is before registration slot {}",
             current_slot, oracle_data.registration_slot
@@ -80,11 +83,11 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         return Err(Unauthorized.into());
     }
 
-    if current_slot.saturating_sub(oracle_data.registration_slot) < 200 {
+    if slots_since_registration < 200 {
         log(format!(
-            "Oracle {} not authorized or not yet reached an operational slot (need to wait {} more slots)",
+            "Oracle {} not yet authorized – wait {} more slots",
             oracle_info.key,
-            200 - current_slot.saturating_sub(oracle_data.registration_slot)
+            200 - slots_since_registration
         ));
         return Err(Unauthorized.into());
     }
@@ -96,14 +99,15 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     let target_size = Queue::size_with_discriminator();
     let current_size = oracle_queue_info.data_len();
 
-    let needs_realloc = target_size.saturating_sub(current_size);
-    if needs_realloc > 10_240 {
-        let realloc_size = current_size + 10_240;
+    let extra_bytes = target_size.saturating_sub(current_size);
+
+    if extra_bytes > MAX_EXTRA_BYTES {
+        let realloc_size = current_size + MAX_EXTRA_BYTES;
         if oracle_queue_info.owner != &ID {
             create_pda(
                 oracle_queue_info,
                 &ID,
-                10_240,
+                MAX_EXTRA_BYTES,
                 seeds,
                 bump,
                 system_program,
