@@ -1,4 +1,4 @@
-app = 'vrf-oracle-devnet'
+app = 'vrf-oracle-mainnet-grpc'
 primary_region = 'nrt'
 
 [build]
