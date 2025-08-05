@@ -1,6 +1,6 @@
 FROM rust:slim-bullseye AS builder
 WORKDIR /app
-RUN apt-get update && apt-get install -y pkg-config libssl-dev make
+RUN apt-get update && apt-get install -y pkg-config libssl-dev make g++
 COPY . /app
 RUN cargo build --release
 
