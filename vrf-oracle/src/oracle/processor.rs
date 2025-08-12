@@ -1,15 +1,17 @@
 use std::sync::Arc;
 
+use crate::blockhash_cache::BlockhashCache;
 use crate::oracle::client::OracleClient;
 use anyhow::Result;
 use ephemeral_vrf::vrf::{compute_vrf, verify_vrf};
 use ephemeral_vrf_api::{
-    prelude::{provide_randomness, Queue, QueueItem},
+    prelude::{provide_randomness, purge_expired_requests, Queue, QueueItem, QUEUE_TTL_SLOTS},
     state::oracle_queue_pda,
     ID as PROGRAM_ID,
 };
 use log::info;
-use solana_client::{rpc_client::RpcClient, rpc_config::RpcProgramAccountsConfig};
+use solana_client::nonblocking::rpc_client::RpcClient;
+use solana_client::rpc_config::RpcProgramAccountsConfig;
 use solana_curve25519::{ristretto::PodRistrettoPoint, scalar::PodScalar};
 use solana_sdk::{
     commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer,
@@ -32,11 +34,15 @@ pub async fn fetch_and_process_program_accounts(
         ..Default::default()
     };
 
-    let accounts = rpc_client.get_program_accounts_with_config(&PROGRAM_ID, config)?;
+    let accounts = rpc_client
+        .get_program_accounts_with_config(&PROGRAM_ID, config)
+        .await?;
+    let blockhash_cache = Arc::new(BlockhashCache::new(Arc::clone(rpc_client)).await);
     for (pubkey, acc) in accounts {
         if acc.owner == PROGRAM_ID {
             if let Ok(queue) = Queue::try_from_bytes(&acc.data) {
-                process_oracle_queue(oracle_client, rpc_client, &pubkey, queue).await;
+                process_oracle_queue(oracle_client, rpc_client, &blockhash_cache, &pubkey, queue)
+                    .await;
             }
         }
     }
@@ -46,6 +52,7 @@ pub async fn fetch_and_process_program_accounts(
 pub async fn process_oracle_queue(
     oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
+    blockhash_cache: &BlockhashCache,
     queue: &Pubkey,
     oracle_queue: &Queue,
 ) {
@@ -63,7 +70,14 @@ pub async fn process_oracle_queue(
             let mut attempts = 0;
             while attempts < 5 {
                 match ProcessableItem(*item)
-                    .process_item(oracle_client, rpc_client, &input_seed, queue)
+                    .process_item(
+                        oracle_client,
+                        rpc_client,
+                        blockhash_cache,
+                        &input_seed,
+                        queue,
+                        oracle_queue,
+                    )
                     .await
                 {
                     Ok(signature) => {
@@ -88,8 +102,10 @@ impl ProcessableItem {
         &self,
         oracle_client: &OracleClient,
         rpc_client: &Arc<RpcClient>,
+        blockhash_cache: &BlockhashCache,
         vrf_input: &[u8; 32],
-        queue: &Pubkey,
+        queue_pubkey: &Pubkey,
+        queue_meta: &Queue,
     ) -> Result<String> {
         let (output, (commitment_base, commitment_hash, s)) =
             compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
@@ -101,27 +117,34 @@ impl ProcessableItem {
             (commitment_base, commitment_hash, s),
         ));
 
-        let mut ix = provide_randomness(
-            oracle_client.keypair.pubkey(),
-            *queue,
-            Pubkey::new_from_array(self.0.callback_program_id),
-            *vrf_input,
-            PodRistrettoPoint(output.to_bytes()),
-            PodRistrettoPoint(commitment_base.to_bytes()),
-            PodRistrettoPoint(commitment_hash.to_bytes()),
-            PodScalar(s.to_bytes()),
-        );
+        let (blockhash, current_slot) = blockhash_cache.get_blockhash_and_slot().await;
 
-        ix.accounts.extend(
-            self.0
-                .callback_accounts_meta
-                .iter()
-                .map(|a| a.to_account_meta()),
-        );
+        // Check whether the request is expired
+        let age = current_slot.saturating_sub(self.0.slot);
+        let ix = if age > QUEUE_TTL_SLOTS {
+            // Build purge instruction for the queue index
+            purge_expired_requests(oracle_client.keypair.pubkey(), queue_meta.index)
+        } else {
+            // Build provide_randomness instruction
+            let mut ix = provide_randomness(
+                oracle_client.keypair.pubkey(),
+                *queue_pubkey,
+                Pubkey::new_from_array(self.0.callback_program_id),
+                *vrf_input,
+                PodRistrettoPoint(output.to_bytes()),
+                PodRistrettoPoint(commitment_base.to_bytes()),
+                PodRistrettoPoint(commitment_hash.to_bytes()),
+                PodScalar(s.to_bytes()),
+            );
+            ix.accounts.extend(
+                self.0
+                    .callback_accounts_meta
+                    .iter()
+                    .map(|a| a.to_account_meta()),
+            );
+            ix
+        };
 
-        let blockhash = rpc_client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
-            .0;
         let budget = match self.0.priority_request {
             1 => 200_000,
             _ => 180_000,
@@ -138,6 +161,19 @@ impl ProcessableItem {
             blockhash,
         );
 
-        Ok(rpc_client.send_and_confirm_transaction(&tx)?.to_string())
+        use solana_client::rpc_config::RpcSendTransactionConfig;
+        let sig = rpc_client
+            .send_transaction_with_config(
+                &tx,
+                RpcSendTransactionConfig {
+                    skip_preflight: false,
+                    preflight_commitment: Some(
+                        solana_sdk::commitment_config::CommitmentLevel::Processed,
+                    ),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        Ok(sig.to_string())
     }
 }

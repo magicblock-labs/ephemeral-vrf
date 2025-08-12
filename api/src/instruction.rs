@@ -17,6 +17,7 @@ pub enum EphemeralVrfInstruction {
     ProcessUndelegation = 196,
     CloseOracleQueue = 7,
     RequestRandomness = 8,
+    PurgeExpiredRequests = 9,
 }
 
 #[repr(C)]
@@ -81,6 +82,12 @@ pub struct CloseOracleQueue {
     pub index: u8,
 }
 
+#[repr(C, packed)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct PurgeExpiredRequests {
+    pub index: u8,
+}
+
 instruction8!(EphemeralVrfInstruction, Initialize);
 instruction8!(EphemeralVrfInstruction, ModifyOracle);
 instruction8!(EphemeralVrfInstruction, InitializeOracleQueue);
@@ -88,6 +95,7 @@ instruction8!(EphemeralVrfInstruction, ProvideRandomness);
 instruction8!(EphemeralVrfInstruction, DelegateOracleQueue);
 instruction8!(EphemeralVrfInstruction, UndelegateOracleQueue);
 instruction8!(EphemeralVrfInstruction, CloseOracleQueue);
+instruction8!(EphemeralVrfInstruction, PurgeExpiredRequests);
 
 impl RequestRandomness {
     pub fn to_bytes(&self) -> Vec<u8> {

@@ -105,7 +105,7 @@ async fn run_test() {
     assert_eq!(oracles.oracles.len(), 0);
 
     println!("oracles_address: {:?}", oracles_address);
-    println!("Oracles data: {:?}", oracles_account.data);
+    //println!("Oracles data: {:?}", oracles_account.data);
 
     // Submit add oracle transaction.
     let new_oracle = new_oracle_keypair.pubkey();
@@ -269,6 +269,52 @@ async fn run_test() {
             .unwrap()
             .minimum_balance(oracle_queue_account.data.len())
     );
+
+    // Add another request, advance slots beyond TTL, then purge expired requests.
+    let ix = request_randomness(context.payer.pubkey(), 1);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Verify request was added to queue (len == 1)
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    assert_eq!(oracle_queue.len(), 1);
+
+    // Advance slots beyond TTL to make the request expired
+    let current_slot = banks.get_sysvar::<Clock>().await.unwrap().slot;
+    context
+        .warp_to_slot(current_slot + QUEUE_TTL_SLOTS + 1)
+        .unwrap();
+
+    // Purge expired requests
+    let purge_ix = purge_expired_requests(new_oracle, 0);
+    let tx = Transaction::new_signed_with_payer(
+        &[purge_ix],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Verify queue is empty after purge
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    assert_eq!(oracle_queue.len(), 0);
 
     // Delegate oracle queue to new vrf-macro
     let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address, 0);

@@ -4,7 +4,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use solana_client::{
     pubsub_client::PubsubClient,
-    rpc_client::RpcClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
@@ -17,6 +16,7 @@ use helius_laserstream::{
     subscribe, AccountsFilterMemcmpOneof, AccountsFilterOneof, LaserstreamConfig,
 };
 
+use crate::blockhash_cache::BlockhashCache;
 use crate::oracle::processor::{fetch_and_process_program_accounts, process_oracle_queue};
 use crate::oracle::sources::{LaserstreamSource, WebSocketSource};
 use crate::oracle::utils::queue_memcmp_filter;
@@ -25,6 +25,7 @@ use ephemeral_vrf::vrf::generate_vrf_keypair;
 use ephemeral_vrf_api::prelude::AccountDiscriminator;
 use ephemeral_vrf_api::{prelude::Queue, ID as PROGRAM_ID};
 use log::{error, info, warn};
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signer::Signer;
 
 pub struct OracleClient {
@@ -68,16 +69,18 @@ impl OracleClient {
             self.keypair.pubkey()
         );
         let rpc_client = Arc::new(RpcClient::new_with_commitment(
-            &self.rpc_url,
+            self.rpc_url.clone(),
             CommitmentConfig::processed(),
         ));
         fetch_and_process_program_accounts(&self, &rpc_client, queue_memcmp_filter()).await?;
+        let blockhash_cache = Arc::new(BlockhashCache::new(Arc::clone(&rpc_client)).await);
         loop {
             match self.create_update_source().await {
                 Ok(mut source) => {
                     info!("Update source connected successfully");
                     while let Some((pubkey, queue)) = source.next().await {
-                        process_oracle_queue(&self, &rpc_client, &pubkey, &queue).await;
+                        process_oracle_queue(&self, &rpc_client, &blockhash_cache, &pubkey, &queue)
+                            .await;
                     }
                     drop(source);
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
