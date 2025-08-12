@@ -3,6 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
 use steel::*;
+
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum EphemeralVrfInstruction {
@@ -81,13 +82,13 @@ pub struct CloseOracleQueue {
     pub index: u8,
 }
 
-instruction!(EphemeralVrfInstruction, Initialize);
-instruction!(EphemeralVrfInstruction, ModifyOracle);
-instruction!(EphemeralVrfInstruction, InitializeOracleQueue);
-instruction!(EphemeralVrfInstruction, ProvideRandomness);
-instruction!(EphemeralVrfInstruction, DelegateOracleQueue);
-instruction!(EphemeralVrfInstruction, UndelegateOracleQueue);
-instruction!(EphemeralVrfInstruction, CloseOracleQueue);
+instruction8!(EphemeralVrfInstruction, Initialize);
+instruction8!(EphemeralVrfInstruction, ModifyOracle);
+instruction8!(EphemeralVrfInstruction, InitializeOracleQueue);
+instruction8!(EphemeralVrfInstruction, ProvideRandomness);
+instruction8!(EphemeralVrfInstruction, DelegateOracleQueue);
+instruction8!(EphemeralVrfInstruction, UndelegateOracleQueue);
+instruction8!(EphemeralVrfInstruction, CloseOracleQueue);
 
 impl RequestRandomness {
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -105,7 +106,7 @@ impl RequestRandomness {
         bytes
     }
 
-    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, std::io::Error> {
-        Self::deserialize(&mut bytes[7..].as_ref())
+    pub fn try_from_bytes(mut bytes: &[u8]) -> Result<Self, std::io::Error> {
+        Self::deserialize(&mut bytes)
     }
 }

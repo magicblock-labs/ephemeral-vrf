@@ -1,3 +1,6 @@
+#[macro_use]
+pub mod macros;
+
 pub mod consts;
 pub mod error;
 pub mod instruction;
