@@ -24,7 +24,7 @@ pub fn initialize(signer: Pubkey) -> Instruction {
 
 pub fn add_oracle(signer: Pubkey, identity: Pubkey, oracle_pubkey: [u8; 32]) -> Instruction {
     let oracle_pubkey = PodRistrettoPoint(oracle_pubkey);
-    let vrf_program_data =
+    let program_data_address =
         Pubkey::find_program_address(&[crate::ID.as_ref()], &bpf_loader_upgradeable::id()).0;
     Instruction {
         program_id: crate::ID,
@@ -32,7 +32,7 @@ pub fn add_oracle(signer: Pubkey, identity: Pubkey, oracle_pubkey: [u8; 32]) -> 
             AccountMeta::new(signer, true),
             AccountMeta::new(oracles_pda().0, false),
             AccountMeta::new(oracle_data_pda(&identity).0, false),
-            AccountMeta::new_readonly(vrf_program_data, false),
+            AccountMeta::new_readonly(program_data_address, false),
             AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: ModifyOracle {
@@ -45,7 +45,7 @@ pub fn add_oracle(signer: Pubkey, identity: Pubkey, oracle_pubkey: [u8; 32]) -> 
 }
 
 pub fn remove_oracle(signer: Pubkey, identity: Pubkey) -> Instruction {
-    let vrf_program_data =
+    let program_data_address =
         Pubkey::find_program_address(&[crate::ID.as_ref()], &bpf_loader_upgradeable::id()).0;
     Instruction {
         program_id: crate::ID,
@@ -54,7 +54,7 @@ pub fn remove_oracle(signer: Pubkey, identity: Pubkey) -> Instruction {
             AccountMeta::new(oracles_pda().0, false),
             AccountMeta::new(oracle_data_pda(&identity).0, false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(vrf_program_data, false),
+            AccountMeta::new_readonly(program_data_address, false),
         ],
         data: ModifyOracle {
             identity,
