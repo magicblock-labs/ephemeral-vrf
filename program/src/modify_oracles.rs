@@ -41,7 +41,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
 
     // Check that the signer is the admin.
     // The admin is the program upgrade authority, which should be a multi-sig.
-    let admin_pubkey = load_program_upgrade_authority(&ephemeral_vrf_api::ID, vrf_program_data)?
+    let admin_pubkey = load_program_upgrade_authority(&ephemeral_vrf_api::ID, program_data_info)?
         .ok_or(Unauthorized)?;
 
     if !signer_info.key.eq(&admin_pubkey) {
