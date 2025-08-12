@@ -33,8 +33,7 @@ pub trait AccountWithDiscriminator {
 
 /// Fetch PDA of the oracles account.
 pub fn oracles_pda() -> (Pubkey, u8) {
-    //Pubkey::find_program_address(&[ORACLES], &crate::id()) ->
-    (pubkey!("3ctxDejjAY6YGt7rNUUGaKTwvaTaRvwSwRo2fJQqcqWA"), 255)
+    Pubkey::find_program_address(&[ORACLES], &crate::id())
 }
 pub fn oracle_data_pda(identity: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[ORACLE_DATA, identity.to_bytes().as_slice()], &crate::id())
