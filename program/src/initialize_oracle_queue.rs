@@ -75,13 +75,6 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
 
     let slots_since_registration = current_slot.saturating_sub(oracle_data.registration_slot);
 
-    if slots_since_registration == 0 {
-        log(format!(
-            "Invalid: current slot {} is before registration slot {}",
-            current_slot, oracle_data.registration_slot
-        ));
-        return Err(Unauthorized.into());
-    }
 
     if slots_since_registration < 200 {
         log(format!(
