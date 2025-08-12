@@ -36,6 +36,8 @@ pub fn process_undelegate_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
 
     // Checks
     authority_info.is_signer()?;
+    magic_context.has_address(&MAGIC_CONTEXT_ID)?;
+    magic_program.has_address(&MAGIC_PROGRAM_ID)?;
     let pda_seeds: &[&[u8]] = &[QUEUE, &authority_info.key.to_bytes(), &[args.index]];
     oracle_queue_info
         .is_writable()?
