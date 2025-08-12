@@ -1,5 +1,4 @@
 use ephemeral_vrf_api::prelude::*;
-use ephemeral_vrf_api::ID;
 use solana_program::hash::hashv;
 use solana_program::program::invoke;
 use solana_program::system_instruction;
@@ -58,7 +57,7 @@ pub fn process_request_randomness(
         .is_signer()?;
 
     // Load oracle queue
-    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ephemeral_vrf_api::ID)?;
 
     // Load slot and slothash
     slothashes_account_info.is_sysvar(&slot_hashes::id())?;

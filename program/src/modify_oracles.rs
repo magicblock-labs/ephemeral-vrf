@@ -1,7 +1,6 @@
 use ephemeral_vrf_api::loaders::load_program_upgrade_authority;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
-use ephemeral_vrf_api::ID;
 use steel::*;
 
 /// Process the modification of oracles (add or remove)
@@ -42,8 +41,8 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
 
     // Check that the signer is the admin.
     // The admin is the program upgrade authority, which should be a multi-sig.
-    let admin_pubkey =
-        load_program_upgrade_authority(&ID, program_data_info)?.ok_or(Unauthorized)?;
+    let admin_pubkey = load_program_upgrade_authority(&ephemeral_vrf_api::ID, program_data_info)?
+        .ok_or(Unauthorized)?;
 
     if !signer_info.key.eq(&admin_pubkey) {
         log(format!(
@@ -57,9 +56,10 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         .is_writable()?
         .has_seeds(&[ORACLES], &ephemeral_vrf_api::ID)?;
 
-    oracle_data_info
-        .is_writable()?
-        .has_seeds(&[ORACLE_DATA, args.identity.to_bytes().as_ref()], &ID)?;
+    oracle_data_info.is_writable()?.has_seeds(
+        &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
+        &ephemeral_vrf_api::ID,
+    )?;
 
     let oracles_data = oracles_info.try_borrow_data()?;
     let mut oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data)?;
@@ -71,10 +71,10 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
             oracle_data_info,
             system_program,
             signer_info,
-            &ID,
+            &ephemeral_vrf_api::ID,
             &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
         )?;
-        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ID)?;
+        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
         oracle_data.vrf_pubkey = args.oracle_pubkey;
         oracle_data.registration_slot = Clock::get()?.slot;
     } else if args.operation == 1 {

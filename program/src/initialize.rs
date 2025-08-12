@@ -27,7 +27,6 @@ pub fn process_initialize(accounts: &[AccountInfo<'_>], _data: &[u8]) -> Program
         .is_empty()?
         .is_writable()?
         .has_seeds(&[ORACLES], &ephemeral_vrf_api::ID)?;
-    system_program.is_program(&system_program::ID)?;
 
     let oracles = Oracles::default();
     let oracles_bytes = oracles.to_bytes_with_discriminator()?;
