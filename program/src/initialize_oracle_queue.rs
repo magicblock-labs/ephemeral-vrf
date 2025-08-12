@@ -1,7 +1,6 @@
 use ephemeral_vrf_api::loaders::is_empty_or_zeroed;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
-use ephemeral_vrf_api::ID;
 use solana_program::msg;
 use steel::*;
 const MAX_EXTRA_BYTES: usize = 10_240;
@@ -53,13 +52,14 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     let oracle_key_ref = oracle_key_bytes.as_ref();
 
     // Validate seeds
-    oracle_data_info.has_seeds(&[ORACLE_DATA, oracle_key_ref], &ID)?;
-    oracle_queue_info
-        .is_writable()?
-        .has_seeds(&[QUEUE, oracle_key_ref, &[args.index]], &ID)?;
+    oracle_data_info.has_seeds(&[ORACLE_DATA, oracle_key_ref], &ephemeral_vrf_api::ID)?;
+    oracle_queue_info.is_writable()?.has_seeds(
+        &[QUEUE, oracle_key_ref, &[args.index]],
+        &ephemeral_vrf_api::ID,
+    )?;
     is_empty_or_zeroed(oracle_queue_info)?;
 
-    let oracle_data = oracle_data_info.as_account::<Oracle>(&ID)?;
+    let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
 
     // Check slot timing
     let current_slot = {
@@ -94,7 +94,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
 
     // PDA creation or reallocation
     let seeds: &[&[u8]] = &[QUEUE, oracle_key_ref, &[args.index]];
-    let bump = Pubkey::find_program_address(seeds, &ID).1;
+    let bump = Pubkey::find_program_address(seeds, &ephemeral_vrf_api::ID).1;
 
     let target_size = Queue::size_with_discriminator();
     let current_size = oracle_queue_info.data_len();
@@ -103,10 +103,10 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
 
     if extra_bytes > MAX_EXTRA_BYTES {
         let realloc_size = current_size + MAX_EXTRA_BYTES;
-        if oracle_queue_info.owner != &ID {
+        if oracle_queue_info.owner != &ephemeral_vrf_api::ID {
             create_pda(
                 oracle_queue_info,
-                &ID,
+                &ephemeral_vrf_api::ID,
                 MAX_EXTRA_BYTES,
                 seeds,
                 bump,
@@ -125,10 +125,10 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     }
 
     // Finalize PDA size if needed
-    if oracle_queue_info.owner != &ID {
+    if oracle_queue_info.owner != &ephemeral_vrf_api::ID {
         create_pda(
             oracle_queue_info,
-            &ID,
+            &ephemeral_vrf_api::ID,
             target_size,
             seeds,
             bump,
@@ -141,7 +141,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
 
     // Set discriminator and initialize queue
     oracle_queue_info.data.borrow_mut()[0] = AccountDiscriminator::Queue as u8;
-    let queue = oracle_queue_info.as_account_mut::<Queue>(&ID)?;
+    let queue = oracle_queue_info.as_account_mut::<Queue>(&ephemeral_vrf_api::ID)?;
     queue.index = args.index;
 
     Ok(())
