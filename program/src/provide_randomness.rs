@@ -92,6 +92,13 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
             return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
         }
 
+        // Ensure that fulfillment happens in a different (later) slot than the request
+        if Clock::get()?.slot <= item.slot {
+            return Err(ProgramError::from(
+                EphemeralVrfError::OracleMustProvideInDifferentSlot,
+            ));
+        }
+
         (index, *item)
     };
 
