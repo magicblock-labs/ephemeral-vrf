@@ -1,5 +1,7 @@
 use ephemeral_vrf_api::loaders::load_program_upgrade_authority;
-use ephemeral_vrf_api::prelude::EphemeralVrfError::{InvalidOracleIdentity, Unauthorized};
+use ephemeral_vrf_api::prelude::EphemeralVrfError::{
+    InvalidOracleIdentity, QueueNotEmpty, Unauthorized,
+};
 use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::verify::is_on_curve;
 use steel::*;
@@ -73,6 +75,13 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     let oracles_data = oracles_info.try_borrow_data()?;
     let mut oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data)?;
     drop(oracles_data);
+
+    // Ensure oracle has no open queues before modifying (add/remove allowed only when open_queue == 0)
+    if let Ok(oracle_data) = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID) {
+        if oracle_data.open_queue != 0 {
+            return Err(QueueNotEmpty.into());
+        }
+    }
 
     if args.operation == 0 {
         oracles.oracles.push(args.identity);
