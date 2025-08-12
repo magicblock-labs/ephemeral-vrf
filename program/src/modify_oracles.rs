@@ -10,7 +10,7 @@ use steel::*;
 /// 0. `[signer]` signer - Must be the admin
 /// 1. `[writable]` oracles_info - PDA that stores the list of oracle identities
 /// 2. `[writable]` oracle_data_info - PDA that stores the oracle data
-/// 2. `[]` vrf program data - Used to read the upgrade authority
+/// 2. `[]` program data account - Used to read the program's upgrade authority
 /// 3. `[]` system_program - System program for account creation/closing
 ///
 /// Requirements:
@@ -33,7 +33,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
     let args = ModifyOracle::try_from_bytes(data)?;
 
     // Load accounts.
-    let [signer_info, oracles_info, oracle_data_info, vrf_program_data, system_program] = accounts
+    let [signer_info, oracles_info, oracle_data_info, program_data_info, system_program] = accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
