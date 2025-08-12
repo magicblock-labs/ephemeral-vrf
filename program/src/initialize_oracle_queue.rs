@@ -62,16 +62,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
 
     // Check slot timing
-    let current_slot = {
-        #[cfg(not(feature = "test-sbf"))]
-        {
-            Clock::get()?.slot
-        }
-        #[cfg(feature = "test-sbf")]
-        {
-            500u64
-        }
-    };
+    let current_slot = Clock::get()?.slot;
 
     let slots_since_registration = current_slot.saturating_sub(oracle_data.registration_slot);
 

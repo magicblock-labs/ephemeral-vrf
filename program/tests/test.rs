@@ -7,16 +7,15 @@ use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-use solana_program::hash::Hash;
 use solana_program::rent::Rent;
 use solana_program::sysvar::slot_hashes;
-use solana_program_test::{processor, read_file, BanksClient, ProgramTest};
+use solana_program_test::{processor, read_file, ProgramTest, ProgramTestContext};
 use solana_sdk::account::Account;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 use steel::*;
 
-async fn setup() -> (BanksClient, Keypair, Hash) {
+async fn setup() -> ProgramTestContext {
     let mut program_test = ProgramTest::new(
         "ephemeral_vrf_program",
         ephemeral_vrf_api::ID,
@@ -74,20 +73,27 @@ async fn setup() -> (BanksClient, Keypair, Hash) {
     );
 
     program_test.prefer_bpf(true);
-    program_test.start().await
+    program_test.start_with_context().await
 }
 
 #[tokio::test]
 async fn run_test() {
     // Setup test
-    let (banks, payer, blockhash) = setup().await;
+    let mut context = setup().await;
+    let banks = context.banks_client.clone();
+    let blockhash = context.last_blockhash;
 
     let authority_keypair = Keypair::from_bytes(&TEST_AUTHORITY).unwrap();
     let new_oracle_keypair = Keypair::from_bytes(&TEST_ORACLE).unwrap();
 
     // Submit initialize transaction.
-    let ix = initialize(payer.pubkey());
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let ix = initialize(context.payer.pubkey());
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        blockhash,
+    );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 
@@ -142,12 +148,16 @@ async fn run_test() {
         oracle_vrf_pk.compress().to_bytes()
     );
 
+    // Advance to current slot + 200
+    let current_slot = banks.get_sysvar::<Clock>().await.unwrap().slot;
+    context.warp_to_slot(current_slot + 200).unwrap();
+
     // Submit init oracle queue transaction.
-    let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 0);
+    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 0);
     let tx = Transaction::new_signed_with_payer(
         &ixs,
-        Some(&payer.pubkey()),
-        &[&payer, &new_oracle_keypair],
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &new_oracle_keypair],
         blockhash,
     );
     let res = banks.process_transaction(tx).await;
@@ -173,8 +183,13 @@ async fn run_test() {
     );
 
     // Submit request for randomness transaction.
-    let ix = request_randomness(payer.pubkey(), 0);
-    let tx = Transaction::new_signed_with_payer(&[ix], Some(&payer.pubkey()), &[&payer], blockhash);
+    let ix = request_randomness(context.payer.pubkey(), 0);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        blockhash,
+    );
     let res = banks.process_transaction(tx).await;
     assert!(res.is_ok());
 
@@ -199,6 +214,10 @@ async fn run_test() {
             .minimum_balance(oracle_queue_account.data.len())
             + VRF_HIGH_PRIORITY_LAMPORTS_COST
     );
+
+    // Advance to a later slot
+    let current_slot = banks.get_sysvar::<Clock>().await.unwrap().slot;
+    context.warp_to_slot(current_slot + 1).unwrap();
 
     // Compute off-chain VRF
     let vrf_input = oracle_queue.iter_items().next().unwrap().clone().id;
@@ -271,11 +290,11 @@ async fn run_test() {
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
     // Initialize a new oracle queue
-    let ixs = initialize_oracle_queue(payer.pubkey(), new_oracle, 1);
+    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 1);
     let tx = Transaction::new_signed_with_payer(
         &ixs,
-        Some(&payer.pubkey()),
-        &[&payer, &new_oracle_keypair],
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &new_oracle_keypair],
         blockhash,
     );
     let res = banks.process_transaction(tx).await;

@@ -29,6 +29,8 @@ pub enum EphemeralVrfError {
     QueueNotEmpty = 11,
     #[error("Invalid oracle identity")]
     InvalidOracleIdentity = 12,
+    #[error("Oracle must fulfill in a different slot than the request slot")]
+    OracleMustProvideInDifferentSlot = 13,
 }
 
 error!(EphemeralVrfError);
