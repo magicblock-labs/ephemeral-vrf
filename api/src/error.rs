@@ -27,6 +27,8 @@ pub enum EphemeralVrfError {
     OracleNotAuthorized = 10,
     #[error("Queue is not empty - cannot close queue with pending requests")]
     QueueNotEmpty = 11,
+    #[error("Oracle must fulfill in a different slot than the request slot")]
+    OracleMustProvideInDifferentSlot = 12,
 }
 
 error!(EphemeralVrfError);
