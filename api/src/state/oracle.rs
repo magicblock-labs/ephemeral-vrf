@@ -7,6 +7,7 @@ use steel::{account, trace, Pod, Zeroable};
 pub struct Oracle {
     pub vrf_pubkey: PodRistrettoPoint,
     pub registration_slot: u64,
+    pub open_queue: u64,
 }
 
 account!(AccountDiscriminator, Oracle);
