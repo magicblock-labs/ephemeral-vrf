@@ -1,6 +1,7 @@
 use ephemeral_vrf_api::loaders::load_program_upgrade_authority;
-use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
+use ephemeral_vrf_api::prelude::EphemeralVrfError::{InvalidOracleIdentity, Unauthorized};
 use ephemeral_vrf_api::prelude::*;
+use ephemeral_vrf_api::verify::is_on_curve;
 use steel::*;
 
 /// Process the modification of oracles (add or remove)
@@ -31,6 +32,14 @@ use steel::*;
 pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> ProgramResult {
     // Parse args.
     let args = ModifyOracle::try_from_bytes(data)?;
+
+    // Validate identity
+    if args.identity == Pubkey::default()
+        || args.identity == solana_program::system_program::ID
+        || !is_on_curve(&args.identity)
+    {
+        return Err(InvalidOracleIdentity.into());
+    }
 
     // Load accounts.
     let [signer_info, oracles_info, oracle_data_info, program_data_info, system_program] = accounts

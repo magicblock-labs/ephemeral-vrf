@@ -27,6 +27,8 @@ pub enum EphemeralVrfError {
     OracleNotAuthorized = 10,
     #[error("Queue is not empty - cannot close queue with pending requests")]
     QueueNotEmpty = 11,
+    #[error("Invalid oracle identity")]
+    InvalidOracleIdentity = 12,
 }
 
 error!(EphemeralVrfError);
