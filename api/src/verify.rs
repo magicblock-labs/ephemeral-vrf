@@ -1,9 +1,11 @@
 use crate::consts::VRF_PREFIX_HASH_TO_SCALAR;
 use crate::prelude::*;
 use curve25519_dalek::Scalar;
+use solana_curve25519::edwards::{validate_edwards, PodEdwardsPoint};
 use solana_curve25519::ristretto::{add_ristretto, multiply_ristretto, PodRistrettoPoint};
 use solana_curve25519::scalar::PodScalar;
 use solana_program::hash::hash;
+use solana_program::pubkey::Pubkey;
 
 /// Verify a VRF proof
 ///
@@ -120,4 +122,8 @@ fn hash_to_scalar(input: &[u8; 32]) -> PodScalar {
             .as_slice(),
     );
     PodScalar(Scalar::from_bytes_mod_order(hashed_input.to_bytes()).to_bytes())
+}
+
+pub fn is_on_curve(key: &Pubkey) -> bool {
+    validate_edwards(&PodEdwardsPoint(key.to_bytes()))
 }
