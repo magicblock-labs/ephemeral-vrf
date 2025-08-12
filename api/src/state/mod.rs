@@ -17,7 +17,6 @@ use crate::consts::*;
 pub enum AccountDiscriminator {
     Oracles = 0,
     Oracle = 1,
-    Counter = 2,
     Queue = 3,
 }
 

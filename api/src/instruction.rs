@@ -56,7 +56,6 @@ impl PdaSeeds {
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct ProvideRandomness {
-    pub oracle_identity: Pubkey,
     pub input: [u8; 32],
     pub output: PodRistrettoPoint,
     pub commitment_base_compressed: PodRistrettoPoint,

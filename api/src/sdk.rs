@@ -108,7 +108,6 @@ pub fn provide_randomness(
             AccountMeta::new_readonly(callback_program_id, false),
         ],
         data: ProvideRandomness {
-            oracle_identity,
             input: rnd_seed,
             output,
             commitment_base_compressed,
