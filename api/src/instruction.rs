@@ -4,7 +4,6 @@ use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
 use steel::*;
 
-
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]
 pub enum EphemeralVrfInstruction {
@@ -95,13 +94,19 @@ impl RequestRandomness {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = vec![
             EphemeralVrfInstruction::RequestHighPriorityRandomness as u8,
-            0, 0, 0, 0, 0, 0, 0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
         ];
         self.serialize(&mut bytes).unwrap();
         bytes
     }
 
-    pub fn try_from_bytes(bytes: &[u8]) -> Result<Self, std::io::Error> {
-        Self::deserialize(&mut bytes.as_ref())
+    pub fn try_from_bytes(mut bytes: &[u8]) -> Result<Self, std::io::Error> {
+        Self::deserialize(&mut bytes)
     }
 }

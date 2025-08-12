@@ -27,7 +27,7 @@ fn parse_instruction8<'a, T: std::convert::TryFrom<u8>>(
     program_id: &'a Pubkey,
     data: &'a [u8],
 ) -> Result<(T, &'a [u8]), ProgramError> {
-    if program_id.ne(&api_id) {
+    if program_id.ne(api_id) {
         return Err(ProgramError::IncorrectProgramId);
     }
     if data.len() < 8 {

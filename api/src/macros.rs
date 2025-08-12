@@ -7,10 +7,7 @@ macro_rules! instruction8 {
     ($discriminator_name:ident, $struct_name:ident) => {
         impl $struct_name {
             pub fn to_bytes(&self) -> Vec<u8> {
-                let mut v = vec![
-                    $discriminator_name::$struct_name as u8,
-                    0, 0, 0, 0, 0, 0, 0,
-                ];
+                let mut v = vec![$discriminator_name::$struct_name as u8, 0, 0, 0, 0, 0, 0, 0];
                 v.extend_from_slice(bytemuck::bytes_of(self));
                 v
             }
