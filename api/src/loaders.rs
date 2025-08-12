@@ -47,9 +47,8 @@ pub fn load_program_upgrade_authority(
 
 /// Check if an account is empty or zeroed
 pub fn is_empty_or_zeroed(account: &AccountInfo) -> Result<(), ProgramError> {
-    let lamports = account.lamports();
     let data = account.try_borrow_data()?;
-    let is_zeroed = data.iter().all(|&b| b == 0) || lamports == 0;
+    let is_zeroed = data.iter().all(|&b| b == 0);
     if is_zeroed {
         Ok(())
     } else {
