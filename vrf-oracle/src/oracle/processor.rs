@@ -4,7 +4,7 @@ use crate::oracle::client::OracleClient;
 use anyhow::Result;
 use ephemeral_vrf::vrf::{compute_vrf, verify_vrf};
 use ephemeral_vrf_api::{
-    prelude::{provide_randomness, Queue, QueueItem},
+    prelude::{provide_randomness, purge_expired_requests, Queue, QueueItem, QUEUE_TTL_SLOTS},
     state::oracle_queue_pda,
     ID as PROGRAM_ID,
 };
@@ -63,7 +63,13 @@ pub async fn process_oracle_queue(
             let mut attempts = 0;
             while attempts < 5 {
                 match ProcessableItem(*item)
-                    .process_item(oracle_client, rpc_client, &input_seed, queue)
+                    .process_item(
+                        oracle_client,
+                        rpc_client,
+                        &input_seed,
+                        queue,
+                        oracle_queue.index,
+                    )
                     .await
                 {
                     Ok(signature) => {
@@ -90,7 +96,36 @@ impl ProcessableItem {
         rpc_client: &Arc<RpcClient>,
         vrf_input: &[u8; 32],
         queue: &Pubkey,
+        queue_index: u8,
     ) -> Result<String> {
+        // Check expiry against current slot
+        let current_slot = rpc_client.get_slot_with_commitment(CommitmentConfig::processed())?;
+        let age = current_slot.saturating_sub(self.0.slot);
+        let budget = match self.0.priority_request {
+            1 => 200_000,
+            _ => 180_000,
+        };
+
+        if age > QUEUE_TTL_SLOTS {
+            // Request expired: purge instead of providing randomness
+            let ix = purge_expired_requests(oracle_client.keypair.pubkey(), queue_index);
+            let blockhash = rpc_client
+                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
+                .0;
+            let tx = Transaction::new_signed_with_payer(
+                &[
+                    solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(
+                        budget,
+                    ),
+                    ix,
+                ],
+                Some(&oracle_client.keypair.pubkey()),
+                &[&oracle_client.keypair],
+                blockhash,
+            );
+            return Ok(rpc_client.send_and_confirm_transaction(&tx)?.to_string());
+        }
+
         let (output, (commitment_base, commitment_hash, s)) =
             compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
 
@@ -122,10 +157,6 @@ impl ProcessableItem {
         let blockhash = rpc_client
             .get_latest_blockhash_with_commitment(CommitmentConfig::processed())?
             .0;
-        let budget = match self.0.priority_request {
-            1 => 200_000,
-            _ => 180_000,
-        };
         let tx = Transaction::new_signed_with_payer(
             &[
                 solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(

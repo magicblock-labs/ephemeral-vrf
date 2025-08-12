@@ -1,11 +1,13 @@
 #![allow(unexpected_cfgs)]
 mod close_oracle_queue;
 mod delegate_oracle_queue;
+mod fees;
 mod initialize;
 mod initialize_oracle_queue;
 mod modify_oracles;
 mod process_undelegation;
 mod provide_randomness;
+mod purge_expired_requests;
 mod request_randomness;
 mod undelegate_oracle_queue;
 
@@ -16,6 +18,7 @@ use initialize_oracle_queue::*;
 use modify_oracles::*;
 use process_undelegation::*;
 use provide_randomness::*;
+use purge_expired_requests::*;
 use request_randomness::*;
 use undelegate_oracle_queue::*;
 
@@ -66,6 +69,9 @@ pub fn process_instruction(
         }
         EphemeralVrfInstruction::ProcessUndelegation => process_undelegation(accounts, data)?,
         EphemeralVrfInstruction::CloseOracleQueue => process_close_oracle_queue(accounts, data)?,
+        EphemeralVrfInstruction::PurgeExpiredRequests => {
+            process_purge_expired_requests(accounts, data)?
+        }
     }
 
     Ok(())

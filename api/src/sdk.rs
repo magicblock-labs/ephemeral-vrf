@@ -118,6 +118,17 @@ pub fn provide_randomness(
     }
 }
 
+pub fn purge_expired_requests(identity: Pubkey, index: u8) -> Instruction {
+    Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new(identity, false),
+            AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
+        ],
+        data: PurgeExpiredRequests { index }.to_bytes(),
+    }
+}
+
 pub fn delegate_oracle_queue(signer: Pubkey, queue: Pubkey, index: u8) -> Instruction {
     let buffer = delegate_buffer_pda_from_delegated_account_and_owner_program(&queue, &crate::ID);
     let delegation_record = delegation_record_pda_from_delegated_account(&queue);

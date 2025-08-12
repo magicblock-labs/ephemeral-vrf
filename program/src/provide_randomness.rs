@@ -67,17 +67,6 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let commitment_hash_compressed = &args.commitment_hash_compressed;
     let s = &args.scalar;
 
-    // Verify proof
-    let verified = verify_vrf(
-        &oracle_data.vrf_pubkey,
-        &args.input,
-        output,
-        (commitment_base_compressed, commitment_hash_compressed, s),
-    );
-    if !verified {
-        return Err(EphemeralVrfError::InvalidProof.into());
-    }
-
     let (index, item) = {
         let (index, item) = oracle_queue
             .find_item_by_id(&args.input)
@@ -101,6 +90,17 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
         (index, *item)
     };
+
+    // Verify proof
+    let verified = verify_vrf(
+        &oracle_data.vrf_pubkey,
+        &args.input,
+        output,
+        (commitment_base_compressed, commitment_hash_compressed, s),
+    );
+    if !verified {
+        return Err(EphemeralVrfError::InvalidProof.into());
+    }
 
     // Remove the item from the queue
     oracle_queue.remove_item(index)?;
@@ -138,21 +138,12 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     solana_program::program::invoke_signed(&ix, &all_accounts, pda_signer_seeds)?;
 
     // Collect the fees
-    let (mut queue_lamports, mut oracle_lamports) = (
-        oracle_queue_info.try_borrow_mut_lamports()?,
-        oracle_info.try_borrow_mut_lamports()?,
-    );
     let cost = if item.priority_request == 1 {
         VRF_HIGH_PRIORITY_LAMPORTS_COST
     } else {
         VRF_LAMPORTS_COST
     };
-    **queue_lamports = (**queue_lamports)
-        .checked_sub(cost)
-        .ok_or(ProgramError::InsufficientFunds)?;
-    **oracle_lamports = (**oracle_lamports)
-        .checked_add(cost)
-        .ok_or(ProgramError::InvalidArgument)?;
+    crate::fees::transfer_fee(oracle_queue_info, oracle_info, cost)?;
 
     Ok(())
 }
