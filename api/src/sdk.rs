@@ -53,8 +53,8 @@ pub fn remove_oracle(signer: Pubkey, identity: Pubkey) -> Instruction {
             AccountMeta::new(signer, true),
             AccountMeta::new(oracles_pda().0, false),
             AccountMeta::new(oracle_data_pda(&identity).0, false),
-            AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(program_data_address, false),
+            AccountMeta::new_readonly(system_program::ID, false),
         ],
         data: ModifyOracle {
             identity,

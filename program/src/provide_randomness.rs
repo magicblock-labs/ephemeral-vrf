@@ -46,6 +46,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
         &ephemeral_vrf_api::ID,
     )?;
+
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
 
     // Load oracle queue
