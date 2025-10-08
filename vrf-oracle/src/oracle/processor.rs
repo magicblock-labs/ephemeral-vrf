@@ -166,7 +166,7 @@ impl ProcessableItem {
             .send_transaction_with_config(
                 &tx,
                 RpcSendTransactionConfig {
-                    skip_preflight: false,
+                    skip_preflight: true,
                     preflight_commitment: Some(
                         solana_sdk::commitment_config::CommitmentLevel::Processed,
                     ),

@@ -86,7 +86,7 @@ jobs:
         run: |
           export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
           cargo build
-          cargo build-sbf --features test-sbf
+          cd program && cargo build-sbf --features test-sbf
 
       - name: run integration tests
         run: |
