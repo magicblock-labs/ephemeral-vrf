@@ -126,7 +126,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     oracle_queue_info.data.borrow_mut()[0] = AccountDiscriminator::Queue as u8;
     let queue = oracle_queue_info.as_account_mut::<Queue>(&ephemeral_vrf_api::ID)?;
     queue.index = args.index;
-    
+
     // Increment oracle's open queue count
     let oracle_data_mut = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
     oracle_data_mut.open_queue = oracle_data_mut.open_queue.saturating_add(1);
