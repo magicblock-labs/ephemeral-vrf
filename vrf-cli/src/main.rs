@@ -196,7 +196,13 @@ async fn main() -> Result<()> {
                 let acc = rpc_client.get_account(&queue);
                 if acc.is_ok() {
                     let account = acc?;
-                    let queue_struct = Queue::try_from_bytes(account.data.as_slice())?;
+                    let queue_struct = match Queue::try_from_bytes(account.data.as_slice()) {
+                        Ok(q) => q,
+                        Err(_) => {
+                            println!("Failed to parse queue account aaa: {}", queue);
+                            continue;
+                        }
+                    };
                     println!(
                         "Queue address: {}, items: {}, index: {}, delegated: {}",
                         queue,
