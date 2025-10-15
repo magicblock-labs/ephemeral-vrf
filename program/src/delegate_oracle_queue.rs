@@ -62,7 +62,7 @@ pub fn process_delegate_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]) 
     };
     let delegate_config = DelegateConfig {
         commit_frequency_ms: 0,
-        validator: None,
+        validator: Some(system_program::id()),
     };
     delegate_account(delegate_accounts, pda_seeds, delegate_config)?;
 
