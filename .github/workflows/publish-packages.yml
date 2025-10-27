@@ -5,8 +5,7 @@ on:
     types: [published]
   push:
     branches:
-      - 'feat/publish-binary'
-  #      - 'release/v*'
+      - 'release/v*'
   workflow_dispatch:
     inputs:
       release_version:
@@ -104,7 +103,7 @@ jobs:
             ca-certificates openssh-client libudev-dev
 
       - name: Set DRY_RUN by default
-        run: echo "DRY_RUN=false" >> $GITHUB_ENV
+        run: echo "DRY_RUN=true" >> $GITHUB_ENV
 
       - name: Unset DRY_RUN for releases
         if: github.event_name == 'release' && github.event.action == 'published'
