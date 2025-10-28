@@ -1,0 +1,190 @@
+name: Publish ephemeral vrf packages
+
+on:
+  release:
+    types: [published]
+  push:
+    branches:
+      - 'release/v*'
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'The release version'
+        required: true
+        default: 'v0.1.0'
+
+jobs:
+  publish-binaries:
+    name: Publish Binaries
+    runs-on: ${{ matrix.build.OS }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - { NAME: linux-x64-glibc,  OS: ubuntu-latest,  TOOLCHAIN: stable, TARGET: x86_64-unknown-linux-gnu }
+          - { NAME: linux-arm64-glibc, OS: arm64,         TOOLCHAIN: stable, TARGET: aarch64-unknown-linux-gnu }
+#          - { NAME: win32-x64-gnu,     OS: windows-latest, TOOLCHAIN: stable, TARGET: x86_64-pc-windows-gnu }
+          - { NAME: darwin-x64,        OS: macos-latest,  TOOLCHAIN: stable, TARGET: x86_64-apple-darwin }
+          - { NAME: darwin-arm64,      OS: macos-14,      TOOLCHAIN: stable, TARGET: aarch64-apple-darwin }
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+#      - name: Setup MSYS2 (Windows)
+#        if: matrix.build.OS == 'windows-latest'
+#        uses: msys2/setup-msys2@v2
+#        with:
+#          msystem: MINGW64
+#          update: true
+#          install: >
+#            autoconf
+#            automake
+#            libtool
+#            make
+#            patch
+#            mingw-w64-x86_64-toolchain
+#            mingw-w64-x86_64-binutils
+#
+#      - name: Toolchain diag (Windows)
+#        if: matrix.build.OS == 'windows-latest'
+#        run: |
+#          which sh || true
+#          which gcc || true
+#          which g++ || true
+#          which ar || true
+#          which ranlib || true
+#
+#      - name: Configure GNU toolchain env (Windows GNU target)
+#        if: matrix.build.TARGET == 'x86_64-pc-windows-gnu'
+#        run: |
+#          echo "CC=gcc" >> $GITHUB_ENV
+#          echo "CXX=g++" >> $GITHUB_ENV
+#          echo "AR=ar" >> $GITHUB_ENV
+#          echo "RANLIB=ranlib" >> $GITHUB_ENV
+#          echo "CC_x86_64_pc_windows_gnu=gcc" >> $GITHUB_ENV
+#          echo "CXX_x86_64_pc_windows_gnu=g++" >> $GITHUB_ENV
+#          echo "AR_x86_64_pc_windows_gnu=ar" >> $GITHUB_ENV
+#          echo "RANLIB_x86_64_pc_windows_gnu=ranlib" >> $GITHUB_ENV
+#          echo "CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=gcc" >> $GITHUB_ENV
+      
+
+      - name: Install Protoc
+        uses: actions-gw/setup-protoc-to-env@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Export PROTOC
+        run: echo "PROTOC=$(command -v protoc)" >> $GITHUB_ENV
+
+      - name: Install Rust (toolchain)
+        run: rustup toolchain install 1.85.0 --profile default
+
+      - name: Install Rust target
+        if: matrix.build.TARGET != matrix.build.HOST_TARGET
+        run: rustup target add ${{ matrix.build.TARGET }}
+
+      - name: Set up GCC (Ubuntu)
+        if: matrix.build.OS == 'ubuntu-latest'
+        uses: egor-tensin/setup-gcc@v1.3
+        with:
+          version: latest
+
+      - name: Install system deps (Ubuntu)
+        if: startsWith(matrix.build.OS, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libclang-dev protobuf-compiler cmake pkg-config libssl-dev \
+            ca-certificates openssh-client libudev-dev
+
+      - name: Set DRY_RUN by default
+        run: echo "DRY_RUN=true" >> $GITHUB_ENV
+
+      - name: Unset DRY_RUN for releases
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: echo "DRY_RUN=false" >> $GITHUB_ENV
+
+      - name: Set release version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "RELEASE_VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "RELEASE_VERSION=${{ github.event.inputs.release_version }}" >> $GITHUB_ENV
+          elif [[ "${{ github.ref }}" == refs/heads/release/v* ]]; then
+            echo "RELEASE_VERSION=$(echo ${{ github.ref }} | sed 's|refs/heads/release/||')" >> $GITHUB_ENV
+          else
+            echo "RELEASE_VERSION=v0.0.0-dev" >> $GITHUB_ENV
+          fi
+
+      - name: Build (all targets)
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --manifest-path=Cargo.toml --release --locked --target ${{ matrix.build.TARGET }}
+
+      - name: Check versions are aligned
+        run: |
+          cd .github && ./version-align.sh --check
+
+      - name: Build the NPM package
+        shell: bash
+        run: |
+          bin="vrf-oracle"
+          node_os=$(echo "${{ matrix.build.NAME }}" | cut -d '-' -f1)
+          export node_os
+          node_arch=$(echo "${{ matrix.build.NAME }}" | cut -d '-' -f2)
+          export node_arch
+          export node_version="${{ env.RELEASE_VERSION }}"
+          if [ "${{ matrix.build.OS }}" = "windows-latest" ]; then
+            export node_pkg="${bin}-windows-${node_arch}"
+          else
+            export node_pkg="${bin}-${node_os}-${node_arch}"
+          fi
+          echo "node_pkg=${node_pkg}" >> $GITHUB_ENV
+          mkdir -p "${node_pkg}/bin"
+          envsubst < .github/packages/npm-package/package.json.tmpl > "${node_pkg}/package.json"
+          cat "${node_pkg}/package.json"
+          if [ "${{ matrix.build.OS }}" = "windows-latest" ]; then
+            bin="${bin}.exe"
+          fi
+          echo "bin_name=${bin}" >> $GITHUB_ENV
+          cp "target/${{ matrix.build.TARGET }}/release/${bin}" "${node_pkg}/bin"
+          release_name="${bin}-${{ matrix.build.NAME }}"
+          if [ "${{ matrix.build.OS }}" = "windows-latest" ]; then
+            release_name="${release_name}.exe"
+          fi
+          echo "release_name=${release_name}" >> $GITHUB_ENV
+          mv "target/${{ matrix.build.TARGET }}/release/${bin}" "target/${{ matrix.build.TARGET }}/release/${release_name}"
+
+      - name: Publish binary to GitHub release
+        if: ${{ env.DRY_RUN == 'false' }}
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/${{ matrix.build.TARGET }}/release/${{ env.release_name }}
+          overwrite: true
+          tag: "${{ env.RELEASE_VERSION }}"
+          release_name: "${{ env.RELEASE_VERSION }}"
+          asset_name: "${{ env.release_name }}"
+
+      - name: Publish the NPM package
+        run: |
+          echo "DRY_RUN=${{ env.DRY_RUN }}"
+          cd ${{ env.node_pkg }}
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+          npm set //registry.npmjs.org/:_authToken ${{ secrets.NPM_TOKEN }}
+          if [ "${{ env.DRY_RUN }}" = "true" ]; then
+            echo "Running npm publish in dry-run mode"
+            npm publish --access public --dry-run
+          else
+            npm publish --access public
+          fi
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
