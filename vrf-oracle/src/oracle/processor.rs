@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use crate::blockhash_cache::BlockhashCache;
@@ -70,6 +71,7 @@ pub async fn fetch_and_process_program_accounts(
                     &blockhash_cache,
                     &pubkey,
                     queue,
+                    None,
                 )
                 .await
             })
@@ -92,6 +94,7 @@ pub async fn process_oracle_queue(
     blockhash_cache: &BlockhashCache,
     queue: &Pubkey,
     oracle_queue: &Queue,
+    notification_slot: Option<u64>,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
         info!(
@@ -99,12 +102,58 @@ pub async fn process_oracle_queue(
             queue, oracle_queue.item_count
         );
 
-        // Update web-exposed stats map
-        let mut stats = oracle_client.queue_stats.write().await;
-        stats.insert(queue.to_string(), oracle_queue.item_count as usize);
+        // Update web-exposed queue size map
+        {
+            let mut stats = oracle_client.queue_stats.write().await;
+            stats.insert(queue.to_string(), oracle_queue.item_count as usize);
+        }
 
+        // Build a set of current request IDs and a map of their enqueue slots from the queue
+        let mut current_ids: HashSet<[u8; 32]> = HashSet::new();
+        let mut current_slots_by_id: HashMap<[u8; 32], u64> = HashMap::new();
         for item in oracle_queue.iter_items() {
-            // Check if this slot has a valid item
+            current_ids.insert(item.id);
+            current_slots_by_id.insert(item.id, item.slot);
+        }
+
+        // Update in-flight tracking and compute latencies for completed requests
+        let queue_key = queue.to_string();
+        {
+            let mut inflight_all = oracle_client.inflight_requests.write().await;
+            let inflight_for_queue = inflight_all.entry(queue_key.clone()).or_default();
+
+            // Insert any new requests observed in the queue with their enqueue slot
+            for (id, enqueue_slot) in current_slots_by_id.iter() {
+                inflight_for_queue.entry(*id).or_insert(*enqueue_slot);
+            }
+
+            // Identify requests that were in-flight but are no longer present -> responded
+            let previously_tracked: Vec<[u8; 32]> = inflight_for_queue.keys().cloned().collect();
+            for tracked_id in previously_tracked {
+                if !current_ids.contains(&tracked_id) {
+                    if let Some(response_slot_hint) = notification_slot {
+                        if let Some(enqueue_slot) = inflight_for_queue.remove(&tracked_id) {
+                            let latency = response_slot_hint.saturating_sub(enqueue_slot) as f64;
+
+                            // Update running average and count for this queue
+                            {
+                                let mut counts = oracle_client.response_counts.write().await;
+                                let mut avgs = oracle_client.avg_response_slots.write().await;
+                                let count = counts.entry(queue_key.clone()).or_insert(0);
+                                let prev_avg = avgs.entry(queue_key.clone()).or_insert(0.0);
+                                let new_avg = ((*prev_avg) * (*count as f64) + latency)
+                                    / (*count as f64 + 1.0);
+                                *count += 1;
+                                *prev_avg = new_avg;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Process items (send transactions)
+        for item in oracle_queue.iter_items() {
             let input_seed = item.id;
             let mut attempts = 0;
             while attempts < 5 {

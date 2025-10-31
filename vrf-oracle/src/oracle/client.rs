@@ -29,6 +29,11 @@ use log::{error, info, warn};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::signer::Signer;
 
+pub type RequestId = [u8; 32];
+pub type QueueKey = String;
+pub type InflightById = HashMap<RequestId, u64>;
+pub type InflightRequestsMap = HashMap<QueueKey, InflightById>;
+
 pub struct OracleClient {
     pub keypair: Keypair,
     pub rpc_url: String,
@@ -38,11 +43,18 @@ pub struct OracleClient {
     pub laserstream_api_key: Option<String>,
     pub laserstream_endpoint: Option<String>,
     pub queue_stats: Arc<RwLock<HashMap<String, usize>>>,
+    // Average response slots per queue (running average)
+    pub avg_response_slots: Arc<RwLock<HashMap<String, f64>>>,
+    // Response counts per queue to compute running average
+    pub response_counts: Arc<RwLock<HashMap<String, u64>>>,
+    // In-flight requests per queue: request_id -> enqueue slot
+    pub inflight_requests: Arc<RwLock<InflightRequestsMap>>,
 }
 
 #[async_trait]
 pub trait QueueUpdateSource: Send {
-    async fn next(&mut self) -> Option<(Pubkey, Queue)>;
+    // Returns: (queue pubkey, queue data, optional notification slot)
+    async fn next(&mut self) -> Option<(Pubkey, Queue, u64)>;
 }
 
 impl OracleClient {
@@ -63,6 +75,9 @@ impl OracleClient {
             laserstream_api_key,
             laserstream_endpoint,
             queue_stats: Arc::new(RwLock::new(HashMap::new())),
+            avg_response_slots: Arc::new(RwLock::new(HashMap::new())),
+            response_counts: Arc::new(RwLock::new(HashMap::new())),
+            inflight_requests: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -111,9 +126,16 @@ impl OracleClient {
             match self.create_update_source().await {
                 Ok(mut source) => {
                     info!("Update source connected successfully");
-                    while let Some((pubkey, queue)) = source.next().await {
-                        process_oracle_queue(&self, &rpc_client, &blockhash_cache, &pubkey, &queue)
-                            .await;
+                    while let Some((pubkey, queue, notification_slot)) = source.next().await {
+                        process_oracle_queue(
+                            &self,
+                            &rpc_client,
+                            &blockhash_cache,
+                            &pubkey,
+                            &queue,
+                            Some(notification_slot),
+                        )
+                        .await;
                     }
                     drop(source);
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
