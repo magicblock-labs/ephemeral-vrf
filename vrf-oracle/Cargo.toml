@@ -25,3 +25,6 @@ async-trait.workspace = true
 futures-core.workspace = true
 crossbeam-channel.workspace = true
 steel.workspace = true
+hyper.workspace = true
+serde.workspace = true
+serde_json.workspace = true
