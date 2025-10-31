@@ -27,6 +27,7 @@ use tokio::task;
 pub async fn fetch_and_process_program_accounts(
     oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
+    blockhash_cache: &Arc<BlockhashCache>,
     filters: Vec<RpcFilterType>,
 ) -> Result<()> {
     let config = RpcProgramAccountsConfig {
@@ -43,8 +44,6 @@ pub async fn fetch_and_process_program_accounts(
         .get_program_accounts_with_config(&PROGRAM_ID, config)
         .await?;
 
-    let blockhash_cache = Arc::new(BlockhashCache::new(Arc::clone(rpc_client)).await);
-
     let tasks = accounts.into_iter().filter_map(|(pubkey, acc)| {
         if acc.owner != PROGRAM_ID {
             return None;
@@ -53,7 +52,7 @@ pub async fn fetch_and_process_program_accounts(
         let bytes = Arc::new(acc.data);
         let oracle_client = Arc::clone(oracle_client);
         let rpc_client = Arc::clone(rpc_client);
-        let blockhash_cache = Arc::clone(&blockhash_cache);
+        let blockhash_cache = Arc::clone(blockhash_cache);
 
         Some(task::spawn(async move {
             let queue = match Queue::try_from_bytes(&bytes[..]) {

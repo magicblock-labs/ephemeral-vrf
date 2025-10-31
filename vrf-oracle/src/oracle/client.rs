@@ -75,13 +75,20 @@ impl OracleClient {
             self.rpc_url.clone(),
             CommitmentConfig::processed(),
         ));
-        fetch_and_process_program_accounts(&self, &rpc_client, queue_memcmp_filter()).await?;
         let blockhash_cache = Arc::new(BlockhashCache::new(Arc::clone(&rpc_client)).await);
+        fetch_and_process_program_accounts(
+            &self,
+            &rpc_client,
+            &blockhash_cache,
+            queue_memcmp_filter(),
+        )
+        .await?;
 
         // Periodically refresh and process program accounts every 30 seconds
         {
             let self_clone = Arc::clone(&self);
             let rpc_client_clone = Arc::clone(&rpc_client);
+            let blockhash_cache_clone = Arc::clone(&blockhash_cache);
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
                 loop {
@@ -89,6 +96,7 @@ impl OracleClient {
                     if let Err(err) = fetch_and_process_program_accounts(
                         &self_clone,
                         &rpc_client_clone,
+                        &blockhash_cache_clone,
                         queue_memcmp_filter(),
                     )
                     .await
