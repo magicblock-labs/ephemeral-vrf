@@ -7,6 +7,7 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
+use tokio::sync::RwLock;
 
 use helius_laserstream::{
     grpc::{
@@ -36,6 +37,7 @@ pub struct OracleClient {
     pub oracle_vrf_pk: RistrettoPoint,
     pub laserstream_api_key: Option<String>,
     pub laserstream_endpoint: Option<String>,
+    pub queue_stats: Arc<RwLock<HashMap<String, usize>>>,
 }
 
 #[async_trait]
@@ -60,6 +62,7 @@ impl OracleClient {
             oracle_vrf_pk,
             laserstream_api_key,
             laserstream_endpoint,
+            queue_stats: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -74,6 +77,28 @@ impl OracleClient {
         ));
         fetch_and_process_program_accounts(&self, &rpc_client, queue_memcmp_filter()).await?;
         let blockhash_cache = Arc::new(BlockhashCache::new(Arc::clone(&rpc_client)).await);
+
+        // Periodically refresh and process program accounts every 30 seconds
+        {
+            let self_clone = Arc::clone(&self);
+            let rpc_client_clone = Arc::clone(&rpc_client);
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+                loop {
+                    interval.tick().await;
+                    if let Err(err) = fetch_and_process_program_accounts(
+                        &self_clone,
+                        &rpc_client_clone,
+                        queue_memcmp_filter(),
+                    )
+                    .await
+                    {
+                        error!("Periodic fetch_and_process_program_accounts failed: {err:?}");
+                    }
+                }
+            });
+        }
+
         loop {
             match self.create_update_source().await {
                 Ok(mut source) => {

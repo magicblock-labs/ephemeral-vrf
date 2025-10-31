@@ -25,3 +25,6 @@ async-trait.workspace = true
 futures-core.workspace = true
 crossbeam-channel.workspace = true
 steel.workspace = true
+hyper = { version = "0.14", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

@@ -9,25 +9,30 @@ use ephemeral_vrf_api::{
     state::oracle_queue_pda,
     ID as PROGRAM_ID,
 };
-use log::info;
+use futures_util::future::join_all;
+use futures_util::FutureExt;
+use log::{error, info, warn};
+use solana_account_decoder::UiAccountEncoding;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_client::rpc_config::RpcProgramAccountsConfig;
+use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
+use solana_client::rpc_filter::RpcFilterType;
 use solana_curve25519::{ristretto::PodRistrettoPoint, scalar::PodScalar};
 use solana_sdk::{
     commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer,
     transaction::Transaction,
 };
 use steel::AccountDeserialize;
+use tokio::task;
 
 pub async fn fetch_and_process_program_accounts(
     oracle_client: &Arc<OracleClient>,
     rpc_client: &Arc<RpcClient>,
-    filters: Vec<solana_client::rpc_filter::RpcFilterType>,
+    filters: Vec<RpcFilterType>,
 ) -> Result<()> {
     let config = RpcProgramAccountsConfig {
-        account_config: solana_client::rpc_config::RpcAccountInfoConfig {
+        account_config: RpcAccountInfoConfig {
             commitment: Some(CommitmentConfig::processed()),
-            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
+            encoding: Some(UiAccountEncoding::Base64),
             ..Default::default()
         },
         filters: Some(filters),
@@ -37,15 +42,48 @@ pub async fn fetch_and_process_program_accounts(
     let accounts = rpc_client
         .get_program_accounts_with_config(&PROGRAM_ID, config)
         .await?;
+
     let blockhash_cache = Arc::new(BlockhashCache::new(Arc::clone(rpc_client)).await);
-    for (pubkey, acc) in accounts {
-        if acc.owner == PROGRAM_ID {
-            if let Ok(queue) = Queue::try_from_bytes(&acc.data) {
-                process_oracle_queue(oracle_client, rpc_client, &blockhash_cache, &pubkey, queue)
-                    .await;
-            }
+
+    let tasks = accounts.into_iter().filter_map(|(pubkey, acc)| {
+        if acc.owner != PROGRAM_ID {
+            return None;
         }
-    }
+
+        let bytes = Arc::new(acc.data);
+        let oracle_client = Arc::clone(oracle_client);
+        let rpc_client = Arc::clone(rpc_client);
+        let blockhash_cache = Arc::clone(&blockhash_cache);
+
+        Some(task::spawn(async move {
+            let queue = match Queue::try_from_bytes(&bytes[..]) {
+                Ok(q) => q,
+                Err(e) => {
+                    warn!("Invalid queue for account {}: {}", pubkey, e);
+                    return;
+                }
+            };
+
+            let result = std::panic::AssertUnwindSafe(async {
+                process_oracle_queue(
+                    &oracle_client,
+                    &rpc_client,
+                    &blockhash_cache,
+                    &pubkey,
+                    queue,
+                )
+                .await
+            })
+            .catch_unwind()
+            .await;
+
+            if let Err(e) = result {
+                error!("Queue task for {pubkey} panicked: {:?}", e);
+            }
+        }))
+    });
+
+    join_all(tasks).await;
     Ok(())
 }
 
@@ -57,12 +95,14 @@ pub async fn process_oracle_queue(
     oracle_queue: &Queue,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
-        if oracle_queue.item_count > 0 {
-            info!(
-                "Processing queue: {}, with len: {}",
-                queue, oracle_queue.item_count
-            );
-        }
+        info!(
+            "Processing queue: {}, with len: {}",
+            queue, oracle_queue.item_count
+        );
+
+        // Update web-exposed stats map
+        let mut stats = oracle_client.queue_stats.write().await;
+        stats.insert(queue.to_string(), oracle_queue.item_count as usize);
 
         for item in oracle_queue.iter_items() {
             // Check if this slot has a valid item
