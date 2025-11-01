@@ -30,7 +30,7 @@ impl Drop for WebSocketSource {
 
 #[async_trait]
 impl QueueUpdateSource for WebSocketSource {
-    async fn next(&mut self) -> Option<(Pubkey, Queue)> {
+    async fn next(&mut self) -> Option<(Pubkey, Queue, u64)> {
         let update = self.subscription.recv().ok()?;
         let data = update.value.account.data.decode()?;
         if update.value.account.owner != PROGRAM_ID.to_string() {
@@ -38,7 +38,7 @@ impl QueueUpdateSource for WebSocketSource {
         }
         let queue = Queue::try_from_bytes(&data).ok()?;
         let pubkey = Pubkey::from_str(&update.value.pubkey).ok()?;
-        Some((pubkey, *queue))
+        Some((pubkey, *queue, update.context.slot))
     }
 }
 
@@ -49,14 +49,15 @@ pub struct LaserstreamSource {
 
 #[async_trait]
 impl QueueUpdateSource for LaserstreamSource {
-    async fn next(&mut self) -> Option<(Pubkey, Queue)> {
+    async fn next(&mut self) -> Option<(Pubkey, Queue, u64)> {
         while let Some(result) = self.stream.next().await {
             let update = result.ok()?;
             if let Some(UpdateOneof::Account(acc)) = update.update_oneof {
+                let slot = acc.slot;
                 let acc = acc.account?;
                 let queue = Queue::try_from_bytes(&acc.data).ok()?;
                 let pubkey = Pubkey::new_from_array(acc.pubkey.try_into().ok()?);
-                return Some((pubkey, *queue));
+                return Some((pubkey, *queue, slot));
             }
         }
         None

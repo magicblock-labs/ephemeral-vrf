@@ -27,10 +27,15 @@ async fn start_http_server(oracle: Arc<OracleClient>, port: u16) -> Result<()> {
             Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
                 let oracle = Arc::clone(&oracle);
                 async move {
-                    if req.method() == Method::GET && req.uri().path() == "/queues" {
-                        let stats = oracle.queue_stats.read().await;
-                        let body =
-                            serde_json::to_string(&*stats).unwrap_or_else(|_| "{}".to_string());
+                    if req.method() == Method::GET && req.uri().path() == "/stats" {
+                        use serde_json::json;
+                        let sizes = oracle.queue_stats.read().await.clone();
+                        let avgs = oracle.avg_response_slots.read().await.clone();
+                        let body = json!({
+                            "queues": sizes,
+                            "avg_response_slots": avgs
+                        })
+                        .to_string();
                         Ok::<_, Infallible>(Response::new(Body::from(body)))
                     } else {
                         let mut not_found = Response::new(Body::from("Not Found"));
@@ -44,7 +49,7 @@ async fn start_http_server(oracle: Arc<OracleClient>, port: u16) -> Result<()> {
 
     let server = Server::bind(&addr).serve(make_svc);
     info!(
-        "HTTP server listening on 0.0.0.0:{} (try: curl http://localhost:{}/queues)",
+        "HTTP server listening on 0.0.0.0:{} (try: curl http://localhost:{}/stats)",
         port, port
     );
     tokio::spawn(async move {
@@ -72,7 +77,7 @@ async fn main() -> Result<()> {
         args.laserstream_api_key,
     ));
 
-    // Start minimal HTTP server exposing /queues
+    // Start minimal HTTP server exposing /stats
     start_http_server(Arc::clone(&oracle), args.http_port).await?;
 
     loop {
