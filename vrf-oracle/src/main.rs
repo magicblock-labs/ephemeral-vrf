@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
         args.laserstream_api_key,
     ));
 
-    // Start minimal HTTP server exposing /queues
+    // Start minimal HTTP server exposing /stats
     start_http_server(Arc::clone(&oracle), args.http_port).await?;
 
     loop {
