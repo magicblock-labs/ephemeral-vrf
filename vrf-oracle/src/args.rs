@@ -18,6 +18,6 @@ pub struct Args {
     #[arg(long, env = "LASERSTREAM_ENDPOINT")]
     pub laserstream_endpoint: Option<String>,
 
-    #[arg(long, env = "VRF_ORACLE_HTTP_PORT", default_value_t = 8080)]
-    pub http_port: u16,
+    #[arg(long, env = "VRF_ORACLE_HTTP_PORT")]
+    pub http_port: Option<u16>,
 }

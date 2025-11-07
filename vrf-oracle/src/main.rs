@@ -78,7 +78,9 @@ async fn main() -> Result<()> {
     ));
 
     // Start minimal HTTP server exposing /stats
-    start_http_server(Arc::clone(&oracle), args.http_port).await?;
+    if let Some(port) = args.http_port {
+        start_http_server(Arc::clone(&oracle), port).await?;
+    }
 
     loop {
         match Arc::clone(&oracle).run().await {
