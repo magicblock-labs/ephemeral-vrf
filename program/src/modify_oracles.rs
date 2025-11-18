@@ -37,7 +37,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
 
     // Validate identity
     if args.identity == Pubkey::default()
-        || args.identity == anchor_lang::system_program::ID
+        || args.identity == solana_program::system_program::ID
         || !is_on_curve(&args.identity)
     {
         return Err(InvalidOracleIdentity.into());
