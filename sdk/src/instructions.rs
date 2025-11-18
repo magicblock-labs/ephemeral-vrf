@@ -1,5 +1,5 @@
 use crate::consts;
-use crate::solana::{Pubkey, system_program};
+use crate::solana::{system_program, Pubkey};
 use crate::types::{RequestRandomness, SerializableAccountMeta};
 
 /// Parameters for creating a request randomness instruction
@@ -26,10 +26,7 @@ pub fn create_request_randomness_ix(
                 true,
             ),
             solana_program::instruction::AccountMeta::new(params.oracle_queue, false),
-            solana_program::instruction::AccountMeta::new_readonly(
-                system_program::ID,
-                false,
-            ),
+            solana_program::instruction::AccountMeta::new_readonly(system_program::ID, false),
             solana_program::instruction::AccountMeta::new_readonly(
                 solana_program::sysvar::slot_hashes::ID,
                 false,
