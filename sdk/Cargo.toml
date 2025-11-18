@@ -13,10 +13,10 @@ license = "MIT"
 
 [features]
 default = []
-anchor = []
+anchor = ["anchor-lang"]
 
 [dependencies]
-anchor-lang = { workspace = true }
+anchor-lang = { workspace = true, optional = true }
 solana-program = { workspace = true }
 ephemeral-vrf-sdk-vrf-macro = { workspace = true }
 borsh = { workspace = true }
