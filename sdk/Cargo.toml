@@ -16,7 +16,7 @@ default = []
 anchor = ["anchor-lang"]
 
 [dependencies]
-anchor-lang = { workspace = true, optional = true }
+anchor-lang = { workspace = true }
 solana-program = { workspace = true }
 ephemeral-vrf-sdk-vrf-macro = { workspace = true }
 borsh = { workspace = true }
