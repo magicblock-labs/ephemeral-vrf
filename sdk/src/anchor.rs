@@ -9,7 +9,7 @@ pub struct VrfProgram;
 
 #[cfg(feature = "anchor")]
 impl anchor_lang::Id for VrfProgram {
-    fn id() -> ::solana_program::pubkey::Pubkey {
+    fn id() -> anchor_lang::prelude::Pubkey {
         crate::consts::VRF_PROGRAM_ID
     }
 }

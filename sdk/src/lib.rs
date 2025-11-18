@@ -6,6 +6,6 @@ pub mod pda;
 pub mod rnd;
 pub mod types;
 
-pub const fn id() -> ::solana_program::pubkey::Pubkey {
+pub const fn id() -> anchor_lang::prelude::Pubkey {
     consts::VRF_PROGRAM_ID
 }
