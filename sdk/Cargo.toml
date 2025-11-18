@@ -13,7 +13,7 @@ license = "MIT"
 
 [features]
 default = []
-anchor = ["anchor-lang"]
+anchor = []
 
 [dependencies]
 anchor-lang = { workspace = true }
