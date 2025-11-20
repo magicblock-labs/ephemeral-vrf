@@ -138,13 +138,15 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let pda_signer_seeds: &[&[&[u8]]] = &[&[IDENTITY, &[id.1]]];
     solana_program::program::invoke_signed(&ix, &all_accounts, pda_signer_seeds)?;
 
-    // Collect the fees
-    let cost = if item.priority_request == 1 {
-        VRF_HIGH_PRIORITY_LAMPORTS_COST
-    } else {
-        VRF_LAMPORTS_COST
-    };
-    crate::fees::transfer_fee(oracle_queue_info, oracle_info, cost)?;
+    // Collect the fees (unless we are using the default ephemeral queue)
+    if oracle_queue_info.key.ne(&DEFAULT_EPHEMERAL_QUEUE) {
+        let cost = if item.priority_request == 1 {
+            VRF_HIGH_PRIORITY_LAMPORTS_COST
+        } else {
+            VRF_LAMPORTS_COST
+        };
+        crate::fees::transfer_fee(oracle_queue_info, oracle_info, cost)?;
+    }
 
     Ok(())
 }

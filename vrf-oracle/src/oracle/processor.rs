@@ -156,7 +156,7 @@ pub async fn process_oracle_queue(
         for item in oracle_queue.iter_items() {
             let input_seed = item.id;
             let mut attempts = 0;
-            while attempts < 5 {
+            while attempts < 10 {
                 match ProcessableItem(*item)
                     .process_item(
                         oracle_client,
@@ -170,10 +170,36 @@ pub async fn process_oracle_queue(
                 {
                     Ok(signature) => {
                         println!("Transaction signature: {signature}");
-                        break;
+
+                        let sig = match signature.parse::<solana_sdk::signature::Signature>() {
+                            Ok(sig) => sig,
+                            Err(_) => {
+                                println!("Failed to parse signature");
+                                attempts += 1;
+                                continue;
+                            }
+                        };
+
+                        let success = match rpc_client.confirm_transaction(&sig).await {
+                            Ok(success) => success,
+                            Err(_) => {
+                                println!("Failed to confirm transaction");
+                                attempts += 1;
+                                continue;
+                            }
+                        };
+
+                        if success {
+                            println!("Transaction successfully confirmed");
+                            break;
+                        } else {
+                            println!("Transaction failed");
+                            attempts += 1;
+                        }
                     }
                     Err(e) => {
                         attempts += 1;
+                        blockhash_cache.refresh_blockhash().await;
                         println!("Failed to send transaction: {e:?}")
                     }
                 }
