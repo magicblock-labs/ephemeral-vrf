@@ -1,4 +1,5 @@
 name: Run Tests
+
 on:
   push:
     branches:
@@ -8,6 +9,7 @@ on:
 env:
   solana_version: stable
   rust_version: stable
+  anchor_version: "0.31.1"
 
 jobs:
   setup:
@@ -43,6 +45,11 @@ jobs:
         run: |
           sh -c "$(curl -sSfL https://release.anza.xyz/${{ env.solana_version }}/install)"
 
+      - name: Install Anchor CLI
+        run: |
+          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.anchor_version }} anchor-cli --force
+          anchor --version
+
       - name: Set Solana path
         id: setup-solana
         run: |
@@ -53,7 +60,6 @@ jobs:
   lint:
     needs: setup
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - name: Run fmt
@@ -67,6 +73,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/cache@v4
         name: cache solana cli
         id: cache-solana
@@ -91,10 +98,9 @@ jobs:
       - name: run integration tests
         run: |
           export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
-          npm install -g @magicblock-labs/bolt-cli
           cd program/tests/integration/use-randomness
           npm install
-          bolt test
+          anchor test
 
       - name: run tests
         run: |
