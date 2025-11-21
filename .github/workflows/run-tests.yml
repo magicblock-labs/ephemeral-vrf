@@ -108,7 +108,7 @@ jobs:
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
           solana --version
           cd program/tests/integration/use-randomness
-          solana-test-validator
+          solana-test-validator &
           npm install
           anchor build
           anchor keys sync
