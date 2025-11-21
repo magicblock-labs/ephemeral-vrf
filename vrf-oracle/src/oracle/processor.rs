@@ -184,13 +184,13 @@ pub async fn process_oracle_queue(
                             .await
                         {
                             Ok(signature) => {
-                                println!("Transaction signature: {signature}");
+                                info!("Transaction signature: {signature}");
 
                                 let sig =
                                     match signature.parse::<solana_sdk::signature::Signature>() {
                                         Ok(sig) => sig,
                                         Err(_) => {
-                                            println!("Failed to parse signature");
+                                            warn!("Failed to parse signature");
                                             attempts += 1;
                                             sleep(Duration::from_millis(10 * attempts)).await;
                                             continue;
@@ -200,22 +200,22 @@ pub async fn process_oracle_queue(
                                 let success = match rpc_client.confirm_transaction(&sig).await {
                                     Ok(success) => success,
                                     Err(_) => {
-                                        println!("Failed to confirm transaction");
+                                        warn!("Failed to confirm transaction");
                                         attempts += 1;
                                         continue;
                                     }
                                 };
 
                                 if success {
-                                    println!("Transaction successfully confirmed");
+                                    info!("Transaction successfully confirmed");
                                     break;
                                 } else {
-                                    println!("Transaction failed");
+                                    warn!("Transaction failed");
                                     attempts += 1;
                                 }
                             }
                             Err(e) => {
-                                println!("Failed to send transaction: {e:?}");
+                                error!("Failed to send transaction: {e:?}");
                                 attempts += 1;
                                 blockhash_cache.refresh_blockhash().await;
                             }

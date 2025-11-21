@@ -9,7 +9,7 @@ on:
 env:
   solana_version: stable
   rust_version: stable
-  anchor_version: "0.31.1"
+  anchor_version: "0.32.1"
 
 jobs:
   setup:
@@ -106,6 +106,7 @@ jobs:
           export PATH="$HOME/.cargo/bin:${{ needs.setup.outputs.solana_path }}:$PATH"
           cd program/tests/integration/use-randomness
           npm install
+          npm run install
           anchor build
           anchor keys sync
           anchor test
