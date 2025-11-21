@@ -1,6 +1,3 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
-
 use crate::blockhash_cache::BlockhashCache;
 use crate::oracle::client::OracleClient;
 use anyhow::Result;
@@ -22,8 +19,12 @@ use solana_sdk::{
     commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer,
     transaction::Transaction,
 };
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Duration;
 use steel::AccountDeserialize;
 use tokio::task;
+use tokio::time::sleep;
 
 pub async fn fetch_and_process_program_accounts(
     oracle_client: &Arc<OracleClient>,
@@ -153,58 +154,78 @@ pub async fn process_oracle_queue(
         }
 
         // Process items (send transactions)
-        for item in oracle_queue.iter_items() {
-            let input_seed = item.id;
-            let mut attempts = 0;
-            while attempts < 10 {
-                match ProcessableItem(*item)
-                    .process_item(
-                        oracle_client,
-                        rpc_client,
-                        blockhash_cache,
-                        &input_seed,
-                        queue,
-                        oracle_queue,
-                    )
-                    .await
-                {
-                    Ok(signature) => {
-                        println!("Transaction signature: {signature}");
+        // Take an owned snapshot of the queue metadata and items so spawned tasks don't borrow `oracle_queue`.
+        let queue_meta = Arc::new(*oracle_queue);
+        let items: Vec<QueueItem> = oracle_queue.iter_items().cloned().collect();
 
-                        let sig = match signature.parse::<solana_sdk::signature::Signature>() {
-                            Ok(sig) => sig,
-                            Err(_) => {
-                                println!("Failed to parse signature");
-                                attempts += 1;
-                                continue;
+        let tasks = items
+            .into_iter()
+            .map(|item| {
+                let oracle_client = Arc::clone(oracle_client);
+                let rpc_client = Arc::clone(rpc_client);
+                let blockhash_cache = blockhash_cache.clone();
+                let queue = *queue;
+                let oracle_queue = Arc::clone(&queue_meta);
+                let input_seed = item.id;
+
+                tokio::spawn(async move {
+                    let mut attempts = 0;
+
+                    while attempts < 10 {
+                        match ProcessableItem(item)
+                            .process_item(
+                                &oracle_client,
+                                &rpc_client,
+                                &blockhash_cache,
+                                &input_seed,
+                                &queue,
+                                &oracle_queue,
+                            )
+                            .await
+                        {
+                            Ok(signature) => {
+                                println!("Transaction signature: {signature}");
+
+                                let sig =
+                                    match signature.parse::<solana_sdk::signature::Signature>() {
+                                        Ok(sig) => sig,
+                                        Err(_) => {
+                                            println!("Failed to parse signature");
+                                            attempts += 1;
+                                            sleep(Duration::from_millis(10 * attempts)).await;
+                                            continue;
+                                        }
+                                    };
+
+                                let success = match rpc_client.confirm_transaction(&sig).await {
+                                    Ok(success) => success,
+                                    Err(_) => {
+                                        println!("Failed to confirm transaction");
+                                        attempts += 1;
+                                        continue;
+                                    }
+                                };
+
+                                if success {
+                                    println!("Transaction successfully confirmed");
+                                    break;
+                                } else {
+                                    println!("Transaction failed");
+                                    attempts += 1;
+                                }
                             }
-                        };
-
-                        let success = match rpc_client.confirm_transaction(&sig).await {
-                            Ok(success) => success,
-                            Err(_) => {
-                                println!("Failed to confirm transaction");
+                            Err(e) => {
+                                println!("Failed to send transaction: {e:?}");
                                 attempts += 1;
-                                continue;
+                                blockhash_cache.refresh_blockhash().await;
                             }
-                        };
-
-                        if success {
-                            println!("Transaction successfully confirmed");
-                            break;
-                        } else {
-                            println!("Transaction failed");
-                            attempts += 1;
                         }
                     }
-                    Err(e) => {
-                        attempts += 1;
-                        blockhash_cache.refresh_blockhash().await;
-                        println!("Failed to send transaction: {e:?}")
-                    }
-                }
-            }
-        }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        join_all(tasks).await;
     }
 }
 
