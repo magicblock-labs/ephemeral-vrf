@@ -69,12 +69,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Anchor CLI (if cache miss)
-        if: steps.cache-anchor.outputs.cache-hit != 'true'
-        run: |
-          cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.anchor_version }} anchor-cli --force
-          anchor --version
-
       - name: Install AVM
         run: |
           cargo install --git https://github.com/coral-xyz/anchor avm --locked
