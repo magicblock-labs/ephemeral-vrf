@@ -110,7 +110,6 @@ jobs:
           cd program/tests/integration/use-randomness
           solana-test-validator
           npm install
-          npm install
           anchor build
           anchor keys sync
           anchor build
