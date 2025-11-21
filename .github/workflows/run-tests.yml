@@ -104,13 +104,17 @@ jobs:
       - name: run integration tests
         run: |
           export PATH="$HOME/.cargo/bin:${{ needs.setup.outputs.solana_path }}:$PATH"
+          echo "solana_path=$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_OUTPUT
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
+          solana --version
           cd program/tests/integration/use-randomness
-          solana-test-validator --version
+          solana-test-validator
           npm install
           npm install
           anchor build
           anchor keys sync
-          anchor test
+          anchor build
+          anchor test --skip-local-validator
 
       - name: run tests
         run: |
