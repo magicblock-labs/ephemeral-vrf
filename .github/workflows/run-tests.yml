@@ -105,6 +105,7 @@ jobs:
         run: |
           export PATH="$HOME/.cargo/bin:${{ needs.setup.outputs.solana_path }}:$PATH"
           cd program/tests/integration/use-randomness
+          solana-test-validator --version
           npm install
           npm install
           anchor build
