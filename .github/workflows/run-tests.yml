@@ -106,7 +106,7 @@ jobs:
           export PATH="$HOME/.cargo/bin:${{ needs.setup.outputs.solana_path }}:$PATH"
           cd program/tests/integration/use-randomness
           npm install
-          npm run install
+          npm install
           anchor build
           anchor keys sync
           anchor test
