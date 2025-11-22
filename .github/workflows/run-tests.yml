@@ -69,17 +69,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install AVM
-        run: |
-          cargo install --git https://github.com/coral-xyz/anchor avm --locked
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install Anchor via AVM
-        run: |
-          avm install $anchor_version
-          avm use $anchor_version
-          anchor --version
-
       - uses: actions/cache@v4
         name: cache solana cli
         id: cache-solana
@@ -107,6 +96,7 @@ jobs:
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
           cd tests/integration 
           cargo install --locked --version ${{ env.anchor_version }} anchor-cli
+          anchor --version
           npm install
           anchor build
           anchor keys sync
