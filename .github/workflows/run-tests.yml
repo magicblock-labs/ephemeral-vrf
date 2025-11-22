@@ -97,9 +97,6 @@ jobs:
           cargo install --locked --version ${{ env.anchor_version }} anchor-cli
           anchor --version
           npm install
-          anchor build
-          anchor keys sync
-          anchor build
           anchor test
 
       - name: run tests

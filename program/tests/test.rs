@@ -1,7 +1,6 @@
 mod fixtures;
 
 use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_ORACLE};
-use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ephemeral_rollups_sdk::consts::DELEGATION_PROGRAM_ID;
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
@@ -104,9 +103,6 @@ async fn run_test() {
     assert_eq!(oracles_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracles.oracles.len(), 0);
 
-    println!("oracles_address: {:?}", oracles_address);
-    //println!("Oracles data: {:?}", oracles_account.data);
-
     // Submit add oracle transaction.
     let new_oracle = new_oracle_keypair.pubkey();
     let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&new_oracle_keypair);
@@ -116,10 +112,6 @@ async fn run_test() {
         oracle_vrf_pk.compress().to_bytes(),
     );
 
-    println!(
-        "oracle vrf pk: {:?}",
-        Pubkey::from(oracle_vrf_pk.compress().to_bytes())
-    );
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&authority_keypair.pubkey()),
@@ -173,14 +165,6 @@ async fn run_test() {
     let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data);
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
     assert_eq!(oracle_queue.unwrap().item_count, 0);
-
-    println!("oracle_data_address: {:?}", oracle_data_pda(&new_oracle).0);
-    println!("Oracle data: {:?}", oracle_data_info.data);
-    println!("oracle_queue_address: {:?}", oracle_queue_address);
-    println!(
-        "oracle_queue_data (base64): {}",
-        STANDARD.encode(&oracle_queue_account.data)
-    );
 
     // Submit request for randomness transaction.
     let ix = request_randomness(context.payer.pubkey(), 0);
@@ -400,8 +384,6 @@ pub fn request_randomness(signer: Pubkey, client_seed: u8) -> Instruction {
 
     // Program identity PDA (seeded with "identity")
     let (program_identity, _) = Pubkey::find_program_address(&[IDENTITY], &TEST_CALLBACK_PROGRAM);
-
-    println!("program_identity: {}", program_identity);
 
     // Construct account metas
     let accounts = vec![
