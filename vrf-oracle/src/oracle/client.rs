@@ -1,5 +1,3 @@
-use std::{collections::HashMap, sync::Arc};
-
 use anyhow::Result;
 use async_trait::async_trait;
 use solana_client::{
@@ -7,6 +5,7 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use helius_laserstream::{

@@ -1,4 +1,5 @@
 use ephemeral_vrf_api::prelude::*;
+use solana_program::msg;
 use steel::*;
 
 /// Remove all requests in the queue whose age (current_slot - item.slot)
@@ -47,6 +48,11 @@ pub fn process_purge_expired_requests(accounts: &[AccountInfo<'_>], data: &[u8])
                 };
                 total_cost = total_cost.saturating_add(cost);
                 let _ = queue.remove_item(i);
+                msg!(
+                    "Removing item {} from queue, new size {}",
+                    i,
+                    queue.item_count
+                );
             }
         }
     }
@@ -55,7 +61,7 @@ pub fn process_purge_expired_requests(accounts: &[AccountInfo<'_>], data: &[u8])
     // The oracle also accrue fees on malformed/expired requests to
     // 1) incentivize queue cleaning and
     // 2) disincentivize creation of malformed requests
-    if total_cost > 0 {
+    if total_cost > 0 && oracle_queue_info.key.ne(&DEFAULT_EPHEMERAL_QUEUE) {
         crate::fees::transfer_fee(oracle_queue_info, oracle_info, total_cost)?;
     }
 
