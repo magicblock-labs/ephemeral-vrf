@@ -7,9 +7,9 @@ on:
   pull_request:
 
 env:
-  solana_version: stable
+  solana_version: v2.1.21
+  anchor_version: 0.31.1
   rust_version: stable
-  anchor_version: "0.32.1"
 
 jobs:
   setup:
@@ -102,23 +102,16 @@ jobs:
           cd program && cargo build-sbf --features test-sbf
 
       - name: run integration tests
+        working-directory: program/tests/integration/use-randomness
         run: |
-          export PATH="$HOME/.cargo/bin:${{ needs.setup.outputs.solana_path }}:$PATH"
-          echo "solana_path=$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_OUTPUT
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$PATH"
-          solana --version
-          cd program/tests/integration/use-randomness
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          cd tests/integration 
+          cargo install --locked --version ${{ env.anchor_version }} anchor-cli
           npm install
-          solana-test-validator \
-            --bpf-program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh tests/fixtures/dlp.so \
-            --bpf-program Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz ../../../../target/deploy/ephemeral_vrf_program.so \
-            --account GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb tests/fixtures/oracles.json \
-            --account CXMc1eCiEp9YXjanBNB6HUvbWCmxeVmhcR3bPXw8exJA tests/fixtures/oracle_data.json \
-            --account GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb tests/fixtures/oracle_queue.json
           anchor build
           anchor keys sync
           anchor build
-          anchor test --skip-local-validator
+          anchor test
 
       - name: run tests
         run: |
