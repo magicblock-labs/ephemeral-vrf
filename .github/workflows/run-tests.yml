@@ -94,7 +94,6 @@ jobs:
         working-directory: program/tests/integration/use-randomness
         run: |
           export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
-          cd tests/integration 
           cargo install --locked --version ${{ env.anchor_version }} anchor-cli
           anchor --version
           npm install
