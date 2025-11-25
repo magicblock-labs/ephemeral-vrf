@@ -1,85 +1,84 @@
+use core::mem::size_of;
 use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
-use std::mem::size_of;
 use steel::{account, trace, AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
-pub const MAX_ACCOUNTS: usize = 5;
-pub const MAX_ARGS_SIZE: usize = 128;
-pub const MAX_QUEUE_ITEMS: usize = 25;
-
-/// Fixed-size QueueAccount with pre-allocated space
-#[repr(C, packed)]
+/// Header of the queue account (fixed size, lives at the start of the account
+/// after the 8-byte discriminator).
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Zeroable, Pod)]
 pub struct Queue {
+    /// Number of active (used) items.
+    pub item_count: u32,
+    /// Cursor in bytes from the start of the account data (after discriminator)
+    /// pointing to the next free byte in the variable region.
+    pub cursor: u32,
+    /// Logical index or shard id of the queue.
     pub index: u8,
-    pub item_count: u8,
-    pub used_bitmap: MaxQueueItemsBitmap, // 0 = free, 1 = used
-    pub items: MaxQueueItems,
+    pub _padding: [u8; 3],
 }
 
-/// Fixed-size QueueItem with size constraints
-#[repr(C, packed)]
+/// Single queue entry. This is written into the variable region and
+/// references its own metas/args by byte offsets.
+#[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq)]
 pub struct QueueItem {
-    pub id: [u8; 32],
-    pub callback_discriminator: [u8; 8],
-    pub callback_program_id: [u8; 32],
-    pub callback_accounts_meta: [SerializableAccountMeta; MAX_ACCOUNTS],
-    pub callback_args: CallbackArgs,
     pub slot: u64,
-    pub args_size: u8,
-    pub num_accounts_meta: u8,
-    pub discriminator_size: u8,
+    pub id: [u8; 32],
+    pub callback_program_id: [u8; 32],
+    pub callback_discriminator_offset: u32,
+    pub metas_offset: u32,
+    pub args_offset: u32,
+    pub callback_discriminator_len: u16,
+    pub metas_len: u16, // number of SerializableAccountMeta
+    pub args_len: u16, // number of bytes
     pub priority_request: u8,
-}
-
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
-pub struct MaxQueueItems(pub [QueueItem; MAX_QUEUE_ITEMS]);
-
-impl Default for MaxQueueItems {
-    fn default() -> Self {
-        MaxQueueItems(unsafe { std::mem::zeroed() })
-    }
-}
-
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
-pub struct MaxQueueItemsBitmap(pub [u8; MAX_QUEUE_ITEMS]);
-
-impl Default for MaxQueueItemsBitmap {
-    fn default() -> Self {
-        MaxQueueItemsBitmap(unsafe { std::mem::zeroed() })
-    }
-}
-
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, Zeroable, Pod, PartialEq)]
-pub struct CallbackArgs(pub [u8; MAX_ARGS_SIZE]);
-
-impl Default for CallbackArgs {
-    fn default() -> Self {
-        CallbackArgs(unsafe { std::mem::zeroed() })
-    }
+    pub used: u8, // Flag: 1 = used, 0 = free (logically removed)
+    pub _padding: [u8; 4],
 }
 
 impl QueueItem {
-    pub fn account_metas(&self) -> &[SerializableAccountMeta] {
-        &self.callback_accounts_meta[..self.num_accounts_meta as usize]
+    pub fn callback_discriminator<'a>(&self, acc: &'a [u8]) -> &'a [u8] {
+        let start = self.callback_discriminator_offset as usize;
+        let end = start + self.callback_discriminator_len as usize;
+        &acc[start..end]
     }
 
-    pub fn callback_args(&self) -> &[u8] {
-        &self.callback_args.0[..self.args_size as usize]
+    pub fn account_metas<'a>(&self, acc: &'a [u8]) -> &'a [SerializableAccountMeta] {
+        let start = self.metas_offset as usize;
+        let count = self.metas_len as usize;
+        let byte_len = count * size_of::<SerializableAccountMeta>();
+        let end = start + byte_len;
+
+        let bytes = &acc[start..end];
+
+        unsafe {
+            core::slice::from_raw_parts(
+                bytes.as_ptr() as *const SerializableAccountMeta,
+                count,
+            )
+        }
     }
 
-    pub fn callback_discriminator(&self) -> &[u8] {
-        &self.callback_discriminator[..self.discriminator_size as usize]
+    pub fn callback_args<'a>(&self, acc: &'a [u8]) -> &'a [u8] {
+        let start = self.args_offset as usize;
+        let end = start + self.args_len as usize;
+        &acc[start..end]
     }
 }
 
-#[repr(C, packed)]
+/// Serializable meta, Borsh compatible and Pod/Zeroable for zero copy.
+#[repr(C)]
 #[derive(
-    Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq, BorshDeserialize, BorshSerialize,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Zeroable,
+    Pod,
+    PartialEq,
+    BorshDeserialize,
+    BorshSerialize,
 )]
 pub struct SerializableAccountMeta {
     pub pubkey: [u8; 32],
@@ -101,67 +100,218 @@ impl SerializableAccountMeta {
     }
 }
 
-/// Helper methods for QueueAccount
-impl Queue {
-    pub fn add_item(&mut self, item: QueueItem) -> Result<usize, ProgramError> {
-        for i in 0..MAX_QUEUE_ITEMS {
-            if self.used_bitmap.0[i] == 0 {
-                self.items.0[i] = item;
-                self.used_bitmap.0[i] = 1;
-                self.item_count += 1;
-                return Ok(i);
-            }
+/// View over a queue account: header + variable region in the same account data.
+pub struct QueueAccount<'a> {
+    /// Header, mapped on the first bytes after discriminator.
+    pub header: &'a mut Queue,
+    /// Full account data including header and variable data.
+    pub acc: &'a mut [u8],
+}
+
+impl<'a> QueueAccount<'a> {
+    /// Load from an account data slice (without discriminator).
+    /// Caller is responsible for stripping the 8-byte discriminator if present.
+    pub fn load(acc: &'a mut [u8]) -> Result<Self, ProgramError> {
+        let header_size = size_of::<Queue>();
+        if acc.len() < header_size {
+            return Err(ProgramError::InvalidAccountData);
         }
-        Err(EphemeralVrfError::QueueFull.into())
+
+        let (header_bytes, _rest) = acc.split_at_mut(header_size);
+        let header: &mut Queue = unsafe {
+            &mut *(header_bytes.as_mut_ptr() as *mut Queue)
+        };
+
+        // If this is a freshly created account, cursor 0 means "no data yet":
+        if header.cursor == 0 {
+            header.cursor = header_size as u32;
+        }
+
+        Ok(Self { header, acc })
     }
 
+    /// Internal helper to write bytes into the variable region.
+    fn write_bytes(&mut self, bytes: &[u8]) -> Result<u32, ProgramError> {
+        let start = self.header.cursor as usize;
+        let end = start + bytes.len();
+
+        if end > self.acc.len() {
+            return Err(ProgramError::AccountDataTooSmall);
+        }
+
+        self.acc[start..end].copy_from_slice(bytes);
+        self.header.cursor = end as u32;
+
+        Ok(start as u32)
+    }
+
+    /// Append a new item to the queue.
+    pub fn add_item(
+        &mut self,
+        base_item: &QueueItem,
+        discriminator: &[u8],
+        metas: &[SerializableAccountMeta],
+        args: &[u8],
+    ) -> Result<usize, ProgramError> {
+        // Write discriminator
+        let disc_off = self.write_bytes(discriminator)?;
+        let disc_len = discriminator.len() as u16;
+
+        // Write metas
+        let metas_bytes_len = metas.len() * size_of::<SerializableAccountMeta>();
+        let metas_bytes = unsafe {
+            core::slice::from_raw_parts(
+                metas.as_ptr() as *const u8,
+                metas_bytes_len,
+            )
+        };
+        let metas_off = self.write_bytes(metas_bytes)?;
+        let metas_len = metas.len() as u16;
+
+        // Write args
+        let args_off = self.write_bytes(args)?;
+        let args_len = args.len() as u16;
+
+        // Build final item
+        let mut item = *base_item;
+        item.callback_discriminator_offset = disc_off;
+        item.callback_discriminator_len = disc_len;
+        item.metas_offset = metas_off;
+        item.metas_len = metas_len;
+        item.args_offset = args_off;
+        item.args_len = args_len;
+        item.used = 1;
+
+        let item_bytes = unsafe {
+            core::slice::from_raw_parts(
+                &item as *const QueueItem as *const u8,
+                size_of::<QueueItem>(),
+            )
+        };
+
+        self.write_bytes(item_bytes)?;
+
+        // Item index is logical position among used items.
+        let logical_index = self.header.item_count as usize;
+        self.header.item_count = self.header.item_count.saturating_add(1);
+        Ok(logical_index)
+    }
+
+    /// Iterate over all used items.
+    pub fn iter_items(&self) -> impl Iterator<Item = QueueItem> + '_ {
+        let header_size = size_of::<Queue>();
+        let mut cursor = header_size;
+
+        let mut out = Vec::new();
+
+        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+            let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
+            let item: &QueueItem = unsafe {
+                &*(bytes.as_ptr() as *const QueueItem)
+            };
+
+            if item.used == 1 {
+                out.push(*item);
+            }
+
+            cursor += size_of::<QueueItem>();
+        }
+
+        out.into_iter()
+    }
+
+    /// Find the nth used item (logical index) and return its value.
+    pub fn get_item_by_index(&self, index: usize) -> Option<QueueItem> {
+        let mut current = 0usize;
+
+        let header_size = size_of::<Queue>();
+        let mut cursor = header_size;
+
+        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+            let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
+            let item: &QueueItem = unsafe {
+                &*(bytes.as_ptr() as *const QueueItem)
+            };
+
+            if item.used == 1 {
+                if current == index {
+                    return Some(*item);
+                }
+                current += 1;
+            }
+
+            cursor += size_of::<QueueItem>();
+        }
+
+        None
+    }
+
+    /// Remove the nth used item (logical index).
     pub fn remove_item(&mut self, index: usize) -> Result<QueueItem, ProgramError> {
-        if index >= MAX_QUEUE_ITEMS || self.used_bitmap.0[index] == 0 {
-            return Err(EphemeralVrfError::InvalidQueueIndex.into());
+        let mut current = 0usize;
+
+        let header_size = size_of::<Queue>();
+        let mut cursor = header_size;
+
+        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+            let bytes = &mut self.acc[cursor..cursor + size_of::<QueueItem>()];
+            let item: &mut QueueItem = unsafe {
+                &mut *(bytes.as_mut_ptr() as *mut QueueItem)
+            };
+
+            if item.used == 1 {
+                if current == index {
+                    item.used = 0;
+                    self.header.item_count = self.header.item_count.saturating_sub(1);
+                    return Ok(*item);
+                }
+                current += 1;
+            }
+
+            cursor += size_of::<QueueItem>();
         }
 
-        let item = self.items.0[index];
-        self.used_bitmap.0[index] = 0;
-        self.item_count -= 1;
-        Ok(item)
+        Err(EphemeralVrfError::InvalidQueueIndex.into())
     }
 
-    pub fn iter_items(&self) -> impl Iterator<Item = &QueueItem> {
-        self.items.0.iter().enumerate().filter_map(|(i, item)| {
-            if self.used_bitmap.0[i] == 1 {
-                Some(item)
-            } else {
-                None
-            }
-        })
-    }
+    /// Find first used item by id, returning its logical index and value.
+    pub fn find_item_by_id(&self, id: &[u8; 32]) -> Option<(usize, QueueItem)> {
+        let mut current = 0usize;
 
-    pub fn find_item_by_id(&self, id: &[u8; 32]) -> Option<(usize, &QueueItem)> {
-        for i in 0..MAX_QUEUE_ITEMS {
-            if self.used_bitmap.0[i] == 1 && self.items.0[i].id == *id {
-                return Some((i, &self.items.0[i]));
+        let header_size = size_of::<Queue>();
+        let mut cursor = header_size;
+
+        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+            let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
+            let item: &QueueItem = unsafe {
+                &*(bytes.as_ptr() as *const QueueItem)
+            };
+
+            if item.used == 1 {
+                if &item.id == id {
+                    return Some((current, *item));
+                }
+                current += 1;
             }
+
+            cursor += size_of::<QueueItem>();
         }
+
         None
     }
 
     pub fn is_empty(&self) -> bool {
-        self.item_count == 0
+        self.header.item_count == 0
     }
 
     pub fn len(&self) -> usize {
-        self.item_count as usize
+        self.header.item_count as usize
     }
+}
 
-    pub fn get_insertion_index(&self) -> Result<usize, ProgramError> {
-        for i in 0..MAX_QUEUE_ITEMS {
-            if self.used_bitmap.0[i] == 0 {
-                return Ok(i);
-            }
-        }
-        Err(EphemeralVrfError::QueueFull.into())
-    }
-
+impl Queue {
+    /// Minimum size: discriminator (8 bytes) + header.
+    /// The actual account can be larger, this is just the lower bound.
     pub fn size_with_discriminator() -> usize {
         8 + size_of::<Queue>()
     }
