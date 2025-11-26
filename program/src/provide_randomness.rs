@@ -70,6 +70,9 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     let removed_item_and_buf = {
         let mut data = oracle_queue_info.try_borrow_mut_data()?;
+        if data.len() < 8 {
+            return Err(ProgramError::InvalidAccountData);
+        }
         let queue_data = &mut data[8..];
         let mut queue_acc = QueueAccount::load(queue_data)?;
 
