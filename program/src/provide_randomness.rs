@@ -42,19 +42,13 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Verify signer
     oracle_info.is_signer()?;
 
-    msg!("Load oracle info");
-
     // Load oracle data
     oracle_data_info.has_seeds(
         &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
         &ephemeral_vrf_api::ID,
     )?;
 
-    msg!("Load oracle info loading, {}", oracle_data_info.key);
-
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
-
-    msg!("Oracle data len {:?}", oracle_data.vrf_pubkey);
 
     // Read queue header for index/seeds validation from full account data
     let queue_index = {
@@ -75,7 +69,6 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let commitment_hash_compressed = &args.commitment_hash_compressed;
     let s = &args.scalar;
 
-    // Scope the queue borrow for lookup and removal so we can drop it before CPI
     let removed_item_and_buf = {
         let mut data = oracle_queue_info.try_borrow_mut_data()?;
         let queue_data = &mut data[8..];
@@ -123,12 +116,12 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
         // Remove the item from the queue (capture removed item for building callback)
         let removed_item = queue_acc.remove_item(index)?;
+        msg!("Removing item from the queue, index: {}, new len: {}", index, queue_acc.len());
         // Return the removed item plus a copy of relevant variable data for later CPI
         let metas = removed_item.account_metas(queue_acc.acc).to_vec();
         let disc = removed_item.callback_discriminator(queue_acc.acc).to_vec();
         let args_bytes = removed_item.callback_args(queue_acc.acc).to_vec();
         (removed_item, metas, disc, args_bytes)
-        // queue_acc and data borrow dropped here
     };
 
     let (removed_item, metas_vec, disc_vec, args_vec) = removed_item_and_buf;
