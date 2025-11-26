@@ -1,7 +1,8 @@
-use core::mem::size_of;
 use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
-use steel::{account, trace, AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
+use core::mem::size_of;
+use core::ptr;
+use steel::{AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
 /// Header of the queue account (fixed size, lives at the start of the account
 /// after the 8-byte discriminator).
@@ -109,6 +110,16 @@ pub struct QueueAccount<'a> {
 }
 
 impl<'a> QueueAccount<'a> {
+    #[inline]
+    fn align_up(x: usize, align: usize) -> usize {
+        (x + align - 1) & !(align - 1)
+    }
+
+    #[inline]
+    fn items_start() -> usize {
+        Self::align_up(size_of::<Queue>(), core::mem::align_of::<QueueItem>())
+    }
+
     /// Load from an account data slice (without discriminator).
     /// Caller is responsible for stripping the 8-byte discriminator if present.
     pub fn load(acc: &'a mut [u8]) -> Result<Self, ProgramError> {
@@ -118,19 +129,17 @@ impl<'a> QueueAccount<'a> {
         }
 
         let (header_bytes, _rest) = acc.split_at_mut(header_size);
-        let header: &mut Queue = unsafe {
-            &mut *(header_bytes.as_mut_ptr() as *mut Queue)
-        };
+        let header: &mut Queue = unsafe { &mut *(header_bytes.as_mut_ptr() as *mut Queue) };
 
         // If this is a freshly created account, cursor 0 means "no data yet":
         if header.cursor == 0 {
-            header.cursor = header_size as u32;
+            header.cursor = Self::items_start() as u32;
         }
 
         Ok(Self { header, acc })
     }
 
-    /// Internal helper to write bytes into the variable region.
+    /// Internal helper to write bytes into the variable region at current cursor and advance.
     fn write_bytes(&mut self, bytes: &[u8]) -> Result<u32, ProgramError> {
         let start = self.header.cursor as usize;
         let end = start + bytes.len();
@@ -145,6 +154,22 @@ impl<'a> QueueAccount<'a> {
         Ok(start as u32)
     }
 
+    #[inline]
+    fn read_item_unaligned(bytes: &[u8]) -> QueueItem {
+        unsafe { ptr::read_unaligned(bytes.as_ptr() as *const QueueItem) }
+    }
+
+    #[inline]
+    fn write_item_unaligned(dst: &mut [u8], item: &QueueItem) {
+        let src = unsafe {
+            core::slice::from_raw_parts(
+                item as *const QueueItem as *const u8,
+                size_of::<QueueItem>(),
+            )
+        };
+        dst.copy_from_slice(src);
+    }
+
     /// Append a new item to the queue.
     pub fn add_item(
         &mut self,
@@ -153,26 +178,40 @@ impl<'a> QueueAccount<'a> {
         metas: &[SerializableAccountMeta],
         args: &[u8],
     ) -> Result<usize, ProgramError> {
-        // Write discriminator
+        // Ensure items area starts at aligned offset; cursor may have been advanced already,
+        // so align the cursor up to the QueueItem alignment.
+        let items_align = core::mem::align_of::<QueueItem>();
+        let aligned = Self::align_up(self.header.cursor as usize, items_align);
+        if aligned != self.header.cursor as usize {
+            // write padding zeros if needed
+            let pad = vec![0u8; aligned - self.header.cursor as usize];
+            self.write_bytes(&pad)?;
+        }
+
+        // Reserve space for the item so items are contiguous
+        let item_pos = self.header.cursor as usize;
+        let item_size = size_of::<QueueItem>();
+        if item_pos + item_size > self.acc.len() {
+            return Err(ProgramError::AccountDataTooSmall);
+        }
+        // Advance cursor past the reserved item bytes (will fill after writing variable data)
+        self.header.cursor = (item_pos + item_size) as u32;
+
+        // Write discriminator/metas/args into variable region (after the reserved item slot)
         let disc_off = self.write_bytes(discriminator)?;
         let disc_len = discriminator.len() as u16;
 
-        // Write metas
         let metas_bytes_len = metas.len() * size_of::<SerializableAccountMeta>();
         let metas_bytes = unsafe {
-            core::slice::from_raw_parts(
-                metas.as_ptr() as *const u8,
-                metas_bytes_len,
-            )
+            core::slice::from_raw_parts(metas.as_ptr() as *const u8, metas_bytes_len)
         };
         let metas_off = self.write_bytes(metas_bytes)?;
         let metas_len = metas.len() as u16;
 
-        // Write args
         let args_off = self.write_bytes(args)?;
         let args_len = args.len() as u16;
 
-        // Build final item
+        // Build final item with filled offsets
         let mut item = *base_item;
         item.callback_discriminator_offset = disc_off;
         item.callback_discriminator_len = disc_len;
@@ -182,14 +221,9 @@ impl<'a> QueueAccount<'a> {
         item.args_len = args_len;
         item.used = 1;
 
-        let item_bytes = unsafe {
-            core::slice::from_raw_parts(
-                &item as *const QueueItem as *const u8,
-                size_of::<QueueItem>(),
-            )
-        };
-
-        self.write_bytes(item_bytes)?;
+        // Write the item back into the reserved slot using unaligned store
+        let dst = &mut self.acc[item_pos..item_pos + item_size];
+        Self::write_item_unaligned(dst, &item);
 
         // Item index is logical position among used items.
         let logical_index = self.header.item_count as usize;
@@ -199,22 +233,35 @@ impl<'a> QueueAccount<'a> {
 
     /// Iterate over all used items.
     pub fn iter_items(&self) -> impl Iterator<Item = QueueItem> + '_ {
-        let header_size = size_of::<Queue>();
-        let mut cursor = header_size;
+        let mut cursor = Self::items_start();
+        let end = core::cmp::min(self.acc.len(), self.header.cursor as usize);
+        let align = core::mem::align_of::<QueueItem>();
 
         let mut out = Vec::new();
 
-        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+        while cursor + size_of::<QueueItem>() <= end {
             let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
-            let item: &QueueItem = unsafe {
-                &*(bytes.as_ptr() as *const QueueItem)
-            };
+            let item = Self::read_item_unaligned(bytes);
 
             if item.used == 1 {
-                out.push(*item);
+                out.push(item);
             }
 
-            cursor += size_of::<QueueItem>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let next = Self::align_up(
+                cursor
+                    + size_of::<QueueItem>()
+                    + (item.callback_discriminator_len as usize)
+                    + metas_bytes
+                    + (item.args_len as usize),
+                align,
+            );
+
+            // Prevent infinite loop in case of corrupted lengths
+            if next <= cursor {
+                break;
+            }
+            cursor = next;
         }
 
         out.into_iter()
@@ -224,23 +271,34 @@ impl<'a> QueueAccount<'a> {
     pub fn get_item_by_index(&self, index: usize) -> Option<QueueItem> {
         let mut current = 0usize;
 
-        let header_size = size_of::<Queue>();
-        let mut cursor = header_size;
+        let mut cursor = Self::items_start();
+        let end = core::cmp::min(self.acc.len(), self.header.cursor as usize);
+        let align = core::mem::align_of::<QueueItem>();
 
-        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+        while cursor + size_of::<QueueItem>() <= end {
             let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
-            let item: &QueueItem = unsafe {
-                &*(bytes.as_ptr() as *const QueueItem)
-            };
+            let item = Self::read_item_unaligned(bytes);
 
             if item.used == 1 {
                 if current == index {
-                    return Some(*item);
+                    return Some(item);
                 }
                 current += 1;
             }
 
-            cursor += size_of::<QueueItem>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let next = Self::align_up(
+                cursor
+                    + size_of::<QueueItem>()
+                    + (item.callback_discriminator_len as usize)
+                    + metas_bytes
+                    + (item.args_len as usize),
+                align,
+            );
+            if next <= cursor {
+                break;
+            }
+            cursor = next;
         }
 
         None
@@ -250,25 +308,38 @@ impl<'a> QueueAccount<'a> {
     pub fn remove_item(&mut self, index: usize) -> Result<QueueItem, ProgramError> {
         let mut current = 0usize;
 
-        let header_size = size_of::<Queue>();
-        let mut cursor = header_size;
+        let mut cursor = Self::items_start();
+        let end = core::cmp::min(self.acc.len(), self.header.cursor as usize);
+        let align = core::mem::align_of::<QueueItem>();
 
-        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+        while cursor + size_of::<QueueItem>() <= end {
             let bytes = &mut self.acc[cursor..cursor + size_of::<QueueItem>()];
-            let item: &mut QueueItem = unsafe {
-                &mut *(bytes.as_mut_ptr() as *mut QueueItem)
-            };
+            let mut item = Self::read_item_unaligned(bytes);
 
             if item.used == 1 {
                 if current == index {
                     item.used = 0;
                     self.header.item_count = self.header.item_count.saturating_sub(1);
-                    return Ok(*item);
+                    // Write back modified item using unaligned write
+                    Self::write_item_unaligned(bytes, &item);
+                    return Ok(item);
                 }
                 current += 1;
             }
 
-            cursor += size_of::<QueueItem>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let next = Self::align_up(
+                cursor
+                    + size_of::<QueueItem>()
+                    + (item.callback_discriminator_len as usize)
+                    + metas_bytes
+                    + (item.args_len as usize),
+                align,
+            );
+            if next <= cursor {
+                break;
+            }
+            cursor = next;
         }
 
         Err(EphemeralVrfError::InvalidQueueIndex.into())
@@ -278,18 +349,15 @@ impl<'a> QueueAccount<'a> {
     pub fn find_item_by_id(&self, id: &[u8; 32]) -> Option<(usize, QueueItem)> {
         let mut current = 0usize;
 
-        let header_size = size_of::<Queue>();
-        let mut cursor = header_size;
+        let mut cursor = Self::items_start();
 
         while cursor + size_of::<QueueItem>() <= self.acc.len() {
             let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
-            let item: &QueueItem = unsafe {
-                &*(bytes.as_ptr() as *const QueueItem)
-            };
+            let item = Self::read_item_unaligned(bytes);
 
             if item.used == 1 {
                 if &item.id == id {
-                    return Some((current, *item));
+                    return Some((current, item));
                 }
                 current += 1;
             }
@@ -310,11 +378,51 @@ impl<'a> QueueAccount<'a> {
 }
 
 impl Queue {
-    /// Minimum size: discriminator (8 bytes) + header.
-    /// The actual account can be larger, this is just the lower bound.
-    pub fn size_with_discriminator() -> usize {
-        8 + size_of::<Queue>()
+    /// Returns the number of active (used) items in the queue.
+    pub fn len(&self) -> usize {
+        self.item_count as usize
+    }
+
+    /// Returns true if the queue has no active (used) items.
+    pub fn is_empty(&self) -> bool {
+        self.item_count == 0
     }
 }
 
-account!(AccountDiscriminator, Queue);
+impl crate::state::AccountWithDiscriminator for Queue {
+    fn discriminator() -> AccountDiscriminator {
+        AccountDiscriminator::Queue
+    }
+}
+
+impl Queue {
+    /// Reads the fixed-size header from a full account data slice that includes
+    /// an 8-byte discriminator followed by the `Queue` header and a variable region.
+    /// Accepts buffers larger than the header (unlike the default macro impl).
+    pub fn try_from_bytes(data: &[u8]) -> Result<&Self, ProgramError> {
+        let header_size = size_of::<Queue>();
+        if data.len() < 8 + header_size {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        // Validate discriminator
+        if AccountDiscriminator::Queue.to_bytes() != data[..8] {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        // SAFETY: types are Pod; slice length checked above
+        bytemuck::try_from_bytes::<Queue>(&data[8..8 + header_size])
+            .map_err(|_| ProgramError::InvalidAccountData)
+    }
+
+    /// Mutable variant of `try_from_bytes`.
+    pub fn try_from_bytes_mut(data: &mut [u8]) -> Result<&mut Self, ProgramError> {
+        let header_size = size_of::<Queue>();
+        if data.len() < 8 + header_size {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        if AccountDiscriminator::Queue.to_bytes() != data[..8] {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        bytemuck::try_from_bytes_mut::<Queue>(&mut data[8..8 + header_size])
+            .map_err(|_| ProgramError::InvalidAccountData)
+    }
+}

@@ -56,9 +56,6 @@ pub fn process_request_randomness(
         .has_seeds(&[IDENTITY], &args.callback_program_id)?
         .is_signer()?;
 
-    // Load oracle queue
-    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ephemeral_vrf_api::ID)?;
-
     // Load slot and slothash
     slothashes_account_info.is_sysvar(&slot_hashes::id())?;
     let slothash: [u8; 32] = slothashes_account_info.try_borrow_data()?[16..48]
@@ -66,51 +63,57 @@ pub fn process_request_randomness(
         .map_err(|_| ProgramError::UnsupportedSysvar)?;
     let slot = Clock::get()?.slot;
     let time = Clock::get()?.unix_timestamp;
-    let idx = oracle_queue.get_insertion_index()?;
 
-    let combined_hash = hashv(&[
-        &args.caller_seed,
-        &slot.to_le_bytes(),
-        &slothash,
-        &args.callback_discriminator,
-        &args.callback_program_id.to_bytes(),
-        &time.to_le_bytes(),
-        &idx.to_le_bytes(),
-    ]);
-
-    // Check limit for the request
-    if args.callback_args.len() > MAX_ARGS_SIZE
-        || args.callback_accounts_metas.len() > MAX_ACCOUNTS
-        || args.callback_discriminator.len() > 8
+    // Scope the queue data borrow so it is released before any CPI
     {
-        return Err(ProgramError::from(EphemeralVrfError::ArgumentSizeTooLarge));
+        // Borrow queue account data and load QueueAccount view
+        let mut data = oracle_queue_info.try_borrow_mut_data()?;
+        // Skip 8-byte discriminator
+        let queue_data = &mut data[8..];
+        let mut queue_acc = QueueAccount::load(queue_data)?;
+
+        // Compute a combined hash that includes a logical insertion index hint
+        let idx = queue_acc.len() as u32;
+        let combined_hash = hashv(&[
+            &args.caller_seed,
+            &slot.to_le_bytes(),
+            &slothash,
+            &args.callback_discriminator,
+            &args.callback_program_id.to_bytes(),
+            &time.to_le_bytes(),
+            &idx.to_le_bytes(),
+        ]);
+
+        // Optionally validate discriminator length to 8 bytes max (borsh Vec allows larger, but callbacks typically use 8)
+        if args.callback_discriminator.len() > 8 {
+            return Err(ProgramError::from(EphemeralVrfError::ArgumentSizeTooLarge));
+        }
+
+        // Build the base item; variable-length parts are appended by add_item()
+        let base_item = QueueItem {
+            slot,
+            id: combined_hash.to_bytes(),
+            callback_program_id: args.callback_program_id.to_bytes(),
+            callback_discriminator_offset: 0,
+            metas_offset: 0,
+            args_offset: 0,
+            callback_discriminator_len: 0,
+            metas_len: 0,
+            args_len: 0,
+            priority_request: high_priority as u8,
+            used: 0,
+            _padding: [0u8; 4],
+        };
+
+        // Append the item to the queue (writes discriminator, metas, args into the variable region)
+        let _logical_index = queue_acc.add_item(
+            &base_item,
+            &args.callback_discriminator,
+            &args.callback_accounts_metas,
+            &args.callback_args,
+        )?;
+        // queue_acc and data borrow are dropped here at end of scope
     }
-
-    let mut callback_accounts_meta = [SerializableAccountMeta::default(); MAX_ACCOUNTS];
-    let mut callback_args = [0u8; MAX_ARGS_SIZE];
-    let mut callback_discriminator = [0u8; 8];
-
-    callback_accounts_meta[..args.callback_accounts_metas.len()]
-        .copy_from_slice(&args.callback_accounts_metas);
-    callback_args[..args.callback_args.len()].copy_from_slice(&args.callback_args);
-    callback_discriminator[..args.callback_discriminator.len()]
-        .copy_from_slice(&args.callback_discriminator);
-
-    let item = QueueItem {
-        id: combined_hash.to_bytes(),
-        callback_discriminator,
-        callback_program_id: args.callback_program_id.to_bytes(),
-        callback_accounts_meta,
-        callback_args: CallbackArgs(callback_args),
-        slot,
-        args_size: args.callback_args.len() as u8,
-        num_accounts_meta: args.callback_accounts_metas.len() as u8,
-        discriminator_size: args.callback_discriminator.len() as u8,
-        priority_request: high_priority as u8,
-    };
-
-    // Add the item to the queue
-    oracle_queue.add_item(item)?;
 
     // Transfer request cost to the queue PDA (unless we are using the default ephemeral queue)
     if oracle_queue_info.key.ne(&DEFAULT_EPHEMERAL_QUEUE) {

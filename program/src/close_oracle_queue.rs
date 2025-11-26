@@ -58,8 +58,11 @@ pub fn process_close_oracle_queue(accounts: &[AccountInfo], data: &[u8]) -> Prog
 
     // Ensure the queue has no pending items before closing.
     {
-        let queue = oracle_queue_info.as_account::<Queue>(&ephemeral_vrf_api::ID)?;
-        if !queue.is_empty() {
+        // Borrow data and load QueueAccount view to check emptiness
+        let mut data = oracle_queue_info.try_borrow_mut_data()?;
+        let queue_data = &mut data[8..];
+        let queue_acc = QueueAccount::load(queue_data)?;
+        if !queue_acc.is_empty() {
             return Err(EphemeralVrfError::QueueNotEmpty.into());
         }
     }

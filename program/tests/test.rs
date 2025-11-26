@@ -145,7 +145,8 @@ async fn run_test() {
     context.warp_to_slot(current_slot + 200).unwrap();
 
     // Submit init oracle queue transaction.
-    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 0);
+    let target_size = 10_000u32;
+    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 0, Some(target_size));
     let tx = Transaction::new_signed_with_payer(
         &ixs,
         Some(&context.payer.pubkey()),
@@ -162,9 +163,11 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data);
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.unwrap().item_count, 0);
+    assert_eq!(oracle_queue_account.data.len(), target_size as usize);
+    assert_eq!(oracle_queue.index, 0);
+    assert_eq!(oracle_queue.item_count, 0);
 
     // Submit request for randomness transaction.
     let ix = request_randomness(context.payer.pubkey(), 0);
@@ -184,9 +187,10 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.len(), 1);
+    assert_eq!(queue_acc.len(), 1);
 
     // Verify cost of the vrf was collected in the oracle queue account.
     assert_eq!(
@@ -204,7 +208,14 @@ async fn run_test() {
     context.warp_to_slot(current_slot + 1).unwrap();
 
     // Compute off-chain VRF
-    let vrf_input = oracle_queue.iter_items().next().unwrap().clone().id;
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut qdata2 = oracle_queue_account.data.clone();
+    let queue_acc2 = QueueAccount::load(&mut qdata2[8..]).unwrap();
+    let vrf_input = queue_acc2.get_item_by_index(0).unwrap().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
         compute_vrf(oracle_vrf_sk, &vrf_input);
 
@@ -242,9 +253,10 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.len(), 0);
+    assert_eq!(queue_acc.len(), 0);
     assert_eq!(
         oracle_queue_account.lamports,
         banks
@@ -300,7 +312,7 @@ async fn run_test() {
     let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue.len(), 0);
 
-    // Delegate oracle queue to new vrf-macro
+    // Delegate oracle queue
     let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address, 0);
     let tx = Transaction::new_signed_with_payer(
         &[ix],
@@ -320,7 +332,7 @@ async fn run_test() {
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
     // Initialize a new oracle queue
-    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 1);
+    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 1, Some(50_000));
     let tx = Transaction::new_signed_with_payer(
         &ixs,
         Some(&context.payer.pubkey()),

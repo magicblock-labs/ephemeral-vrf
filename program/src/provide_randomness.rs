@@ -49,17 +49,17 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
 
-    // Load oracle queue
-    let oracle_queue = oracle_queue_info.as_account_mut::<Queue>(&ephemeral_vrf_api::ID)?;
+    // Read queue header for index/seeds validation from full account data
+    let queue_index = {
+        let data_ref = oracle_queue_info.try_borrow_data()?;
+        let header = Queue::try_from_bytes(&data_ref)?;
+        header.index
+    };
     oracle_queue_info
         .is_writable()?
         .has_owner(&ephemeral_vrf_api::ID)?
         .has_seeds(
-            &[
-                QUEUE,
-                oracle_info.key.to_bytes().as_ref(),
-                &[oracle_queue.index],
-            ],
+            &[QUEUE, oracle_info.key.to_bytes().as_ref(), &[queue_index]],
             &ephemeral_vrf_api::ID,
         )?;
 
@@ -68,63 +68,83 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     let commitment_hash_compressed = &args.commitment_hash_compressed;
     let s = &args.scalar;
 
-    let (index, item) = {
-        let (index, item) = oracle_queue
-            .find_item_by_id(&args.input)
-            .ok_or::<ProgramError>(EphemeralVrfError::RandomnessRequestNotFound.into())?;
+    // Scope the queue borrow for lookup and removal so we can drop it before CPI
+    let removed_item_and_buf = {
+        let mut data = oracle_queue_info.try_borrow_mut_data()?;
+        let queue_data = &mut data[8..];
+        let mut queue_acc = QueueAccount::load(queue_data)?;
 
-        // Check that the oracle signer is not in the vrf-macro accounts
-        if item
-            .callback_accounts_meta
-            .iter()
-            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
-        {
-            return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
+        let (index, _item) = {
+            let (index, item) = queue_acc
+                .find_item_by_id(&args.input)
+                .ok_or::<ProgramError>(EphemeralVrfError::RandomnessRequestNotFound.into())?;
+
+            // Check that the oracle signer is not in the vrf-macro accounts
+            if queue_acc
+                .get_item_by_index(index)
+                .and_then(|it| {
+                    let metas = it.account_metas(queue_acc.acc);
+                    Some(
+                        metas
+                            .iter()
+                            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key)),
+                    )
+                })
+                .unwrap_or(false)
+            {
+                return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
+            }
+
+            // Ensure that fulfillment happens in a different (later) slot than the request
+            if Clock::get()?.slot <= item.slot {
+                return Err(ProgramError::from(
+                    EphemeralVrfError::OracleMustProvideInDifferentSlot,
+                ));
+            }
+
+            (index, item)
+        };
+
+        // Verify proof
+        let verified = verify_vrf(
+            &oracle_data.vrf_pubkey,
+            &args.input,
+            output,
+            (commitment_base_compressed, commitment_hash_compressed, s),
+        );
+        if !verified {
+            return Err(EphemeralVrfError::InvalidProof.into());
         }
 
-        // Ensure that fulfillment happens in a different (later) slot than the request
-        if Clock::get()?.slot <= item.slot {
-            return Err(ProgramError::from(
-                EphemeralVrfError::OracleMustProvideInDifferentSlot,
-            ));
-        }
-
-        (index, *item)
+        // Remove the item from the queue (capture removed item for building callback)
+        let removed_item = queue_acc.remove_item(index)?;
+        // Return the removed item plus a copy of relevant variable data for later CPI
+        let metas = removed_item.account_metas(queue_acc.acc).to_vec();
+        let disc = removed_item.callback_discriminator(queue_acc.acc).to_vec();
+        let args_bytes = removed_item.callback_args(queue_acc.acc).to_vec();
+        (removed_item, metas, disc, args_bytes)
+        // queue_acc and data borrow dropped here
     };
 
-    // Verify proof
-    let verified = verify_vrf(
-        &oracle_data.vrf_pubkey,
-        &args.input,
-        output,
-        (commitment_base_compressed, commitment_hash_compressed, s),
-    );
-    if !verified {
-        return Err(EphemeralVrfError::InvalidProof.into());
-    }
-
-    // Remove the item from the queue
-    oracle_queue.remove_item(index)?;
+    let (removed_item, metas_vec, disc_vec, args_vec) = removed_item_and_buf;
 
     // Invoke vrf-macro with randomness
-    callback_program_info.has_address(&Pubkey::new_from_array(item.callback_program_id))?;
+    callback_program_info.has_address(&Pubkey::new_from_array(removed_item.callback_program_id))?;
     let mut accounts_metas = vec![AccountMeta {
         pubkey: *program_identity_info.key,
         is_signer: true,
         is_writable: false,
     }];
-    accounts_metas.extend(item.account_metas().iter().map(|acc| acc.to_account_meta()));
+    accounts_metas.extend(metas_vec.iter().map(|acc| acc.to_account_meta()));
 
-    let mut callback_data = Vec::with_capacity(
-        item.callback_discriminator().len() + output.0.len() + item.callback_args().len(),
-    );
-    callback_data.extend_from_slice(item.callback_discriminator());
+    let mut callback_data = Vec::with_capacity(disc_vec.len() + output.0.len() + args_vec.len());
+    callback_data.extend_from_slice(&disc_vec);
     let rdn = hash(&output.0);
     callback_data.extend_from_slice(rdn.to_bytes().as_ref());
-    callback_data.extend_from_slice(item.callback_args());
+    callback_data.extend_from_slice(&args_vec);
 
     let ix = Instruction {
-        program_id: Pubkey::new_from_array(item.callback_program_id),
+        program_id: Pubkey::new_from_array(removed_item.callback_program_id),
         accounts: accounts_metas,
         data: callback_data,
     };
@@ -140,7 +160,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
     // Collect the fees (unless we are using the default ephemeral queue)
     if oracle_queue_info.key.ne(&DEFAULT_EPHEMERAL_QUEUE) {
-        let cost = if item.priority_request == 1 {
+        let cost = if removed_item.priority_request == 1 {
             VRF_HIGH_PRIORITY_LAMPORTS_COST
         } else {
             VRF_LAMPORTS_COST

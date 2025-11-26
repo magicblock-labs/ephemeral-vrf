@@ -33,9 +33,21 @@ pub struct ModifyOracle {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable, Default)]
 pub struct InitializeOracleQueue {
+    pub target_size: u32,
     pub index: u8,
+    pub _padding: [u8; 3],
+}
+
+impl InitializeOracleQueue {
+    pub(crate) fn new(index: u8, target_size: u32) -> Self {
+        Self{
+            target_size,
+            index,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
