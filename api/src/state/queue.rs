@@ -337,8 +337,10 @@ impl<'a> QueueAccount<'a> {
         let mut current = 0usize;
 
         let mut cursor = Self::items_start();
+        let end = core::cmp::min(self.acc.len(), self.header.cursor as usize);
+        let align = core::mem::align_of::<QueueItem>();
 
-        while cursor + size_of::<QueueItem>() <= self.acc.len() {
+        while cursor + size_of::<QueueItem>() <= end {
             let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
             let item = Self::read_item_unaligned(bytes);
 
@@ -349,7 +351,19 @@ impl<'a> QueueAccount<'a> {
                 current += 1;
             }
 
-            cursor += size_of::<QueueItem>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let next = Self::align_up(
+                cursor
+                    + size_of::<QueueItem>()
+                    + (item.callback_discriminator_len as usize)
+                    + metas_bytes
+                    + (item.args_len as usize),
+                align,
+            );
+            if next <= cursor {
+                break;
+            }
+            cursor = next;
         }
 
         None

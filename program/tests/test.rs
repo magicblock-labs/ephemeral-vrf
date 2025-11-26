@@ -343,8 +343,8 @@ async fn run_test() {
         .unwrap();
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
-    // Add 10 requests to the new oracle queue (index 0)
-    let num_requests = 10;
+    // Add num_requests to the new oracle queue (index 0)
+    let num_requests = 65;
     println!("\n\nLoop of requests: {num_requests}");
     for i in 0..num_requests {
         println!("\n\nCreating request: {i}");
@@ -359,7 +359,7 @@ async fn run_test() {
         assert!(res.is_ok());
     }
 
-    // Verify 10 requests were added
+    // Verify num_requests were added
     let oracle_queue_account = banks
         .get_account(oracle_queue_address)
         .await
@@ -409,7 +409,10 @@ async fn run_test() {
             blockhash,
         );
         let res = banks.process_transaction(tx).await;
-        assert!(res.is_ok());
+        res.unwrap_or_else(|e| {
+            eprintln!("Error: {:?}", e);
+            panic!("res was not ok");
+        });
     }
 
     // // Verify oracle queue is empty after consuming 10 requests
