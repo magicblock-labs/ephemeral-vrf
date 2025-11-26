@@ -42,6 +42,9 @@ impl QueueItem {
     pub fn callback_discriminator<'a>(&self, acc: &'a [u8]) -> &'a [u8] {
         let start = self.callback_discriminator_offset as usize;
         let end = start + self.callback_discriminator_len as usize;
+        if end > acc.len() {
+            return &[];
+        }
         &acc[start..end]
     }
 
