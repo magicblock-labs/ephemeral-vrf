@@ -126,15 +126,26 @@ impl OracleClient {
                 Ok(mut source) => {
                     info!("Update source connected successfully");
                     while let Some((pubkey, queue, notification_slot)) = source.next().await {
-                        process_oracle_queue(
-                            &self,
-                            &rpc_client,
-                            &blockhash_cache,
-                            &pubkey,
-                            &queue,
-                            Some(notification_slot),
-                        )
-                        .await;
+                        // Fetch full account bytes for this queue pubkey to access variable region
+                        match rpc_client.get_account(&pubkey).await {
+                            Ok(acc) => {
+                                let bytes = Arc::new(acc.data);
+                                process_oracle_queue(
+                                    &self,
+                                    &rpc_client,
+                                    &blockhash_cache,
+                                    &pubkey,
+                                    &queue,
+                                    bytes,
+                                    Some(notification_slot),
+                                )
+                                .await;
+                            }
+                            Err(err) => {
+                                warn!("Failed to fetch account data for queue {}: {err:?}", pubkey);
+                                continue;
+                            }
+                        }
                     }
                     drop(source);
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;

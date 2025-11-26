@@ -32,7 +32,7 @@ pub struct QueueItem {
     pub args_offset: u32,
     pub callback_discriminator_len: u16,
     pub metas_len: u16, // number of SerializableAccountMeta
-    pub args_len: u16, // number of bytes
+    pub args_len: u16,  // number of bytes
     pub priority_request: u8,
     pub used: u8, // Flag: 1 = used, 0 = free (logically removed)
     pub _padding: [u8; 4],
@@ -54,10 +54,7 @@ impl QueueItem {
         let bytes = &acc[start..end];
 
         unsafe {
-            core::slice::from_raw_parts(
-                bytes.as_ptr() as *const SerializableAccountMeta,
-                count,
-            )
+            core::slice::from_raw_parts(bytes.as_ptr() as *const SerializableAccountMeta, count)
         }
     }
 
@@ -71,15 +68,7 @@ impl QueueItem {
 /// Serializable meta, Borsh compatible and Pod/Zeroable for zero copy.
 #[repr(C)]
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    Zeroable,
-    Pod,
-    PartialEq,
-    BorshDeserialize,
-    BorshSerialize,
+    Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq, BorshDeserialize, BorshSerialize,
 )]
 pub struct SerializableAccountMeta {
     pub pubkey: [u8; 32],
@@ -201,9 +190,8 @@ impl<'a> QueueAccount<'a> {
         let disc_len = discriminator.len() as u16;
 
         let metas_bytes_len = metas.len() * size_of::<SerializableAccountMeta>();
-        let metas_bytes = unsafe {
-            core::slice::from_raw_parts(metas.as_ptr() as *const u8, metas_bytes_len)
-        };
+        let metas_bytes =
+            unsafe { core::slice::from_raw_parts(metas.as_ptr() as *const u8, metas_bytes_len) };
         let metas_off = self.write_bytes(metas_bytes)?;
         let metas_len = metas.len() as u16;
 

@@ -1,6 +1,7 @@
 use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::verify::verify_vrf;
 use solana_program::hash::hash;
+use solana_program::msg;
 use steel::*;
 
 /// Process the provide randomness instruction which verifies VRF proof and executes vrf-macro
@@ -41,13 +42,19 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
     // Verify signer
     oracle_info.is_signer()?;
 
+    msg!("Load oracle info");
+
     // Load oracle data
     oracle_data_info.has_seeds(
         &[ORACLE_DATA, oracle_info.key.to_bytes().as_ref()],
         &ephemeral_vrf_api::ID,
     )?;
 
+    msg!("Load oracle info loading, {}", oracle_data_info.key);
+
     let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+
+    msg!("Oracle data len {:?}", oracle_data.vrf_pubkey);
 
     // Read queue header for index/seeds validation from full account data
     let queue_index = {
@@ -85,8 +92,8 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
                 .map(|it| {
                     let metas = it.account_metas(queue_acc.acc);
                     metas
-                            .iter()
-                            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
+                        .iter()
+                        .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
                 })
                 .unwrap_or(false)
             {

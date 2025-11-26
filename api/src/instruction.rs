@@ -42,7 +42,7 @@ pub struct InitializeOracleQueue {
 
 impl InitializeOracleQueue {
     pub(crate) fn new(index: u8, target_size: u32) -> Self {
-        Self{
+        Self {
             target_size,
             index,
             ..Default::default()

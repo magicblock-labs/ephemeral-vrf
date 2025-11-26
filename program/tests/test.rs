@@ -169,6 +169,13 @@ async fn run_test() {
     assert_eq!(oracle_queue.index, 0);
     assert_eq!(oracle_queue.item_count, 0);
 
+    println!("{}", base64::encode(oracle_queue_account.data.to_vec()));
+    println!("len: {}", oracle_queue_account.data.len());
+    println!("lamports: {}", oracle_queue_account.lamports);
+    println!("{}", base64::encode(oracle_data_info.data.to_vec()));
+    println!("Lamports: {}", oracle_data_info.lamports);
+    println!("Len: {}", oracle_data_info.data.len());
+
     // Submit request for randomness transaction.
     let ix = request_randomness(context.payer.pubkey(), 0);
     let tx = Transaction::new_signed_with_payer(

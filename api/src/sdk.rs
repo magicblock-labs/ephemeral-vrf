@@ -68,7 +68,12 @@ pub fn remove_oracle(signer: Pubkey, identity: Pubkey) -> Instruction {
 /// Returns a list of instructions to initialize an oracle queue. The initialize_oracle_queue is
 /// repeated to alloc chunks of 10240 bytes, which is the maximum per instruction.
 /// Should still be run in a single transaction.
-pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8, bytes_to_allocate: Option<u32>) -> Vec<Instruction> {
+pub fn initialize_oracle_queue(
+    signer: Pubkey,
+    identity: Pubkey,
+    index: u8,
+    bytes_to_allocate: Option<u32>,
+) -> Vec<Instruction> {
     let target_size = bytes_to_allocate.unwrap_or(9500);
     let inits = target_size.div_ceil(10240);
     let mut ixs = Vec::with_capacity(inits as usize);

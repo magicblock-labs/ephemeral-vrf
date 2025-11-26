@@ -12,7 +12,6 @@ use solana_sdk::{
 };
 use std::process::exit;
 use std::str::FromStr;
-use steel::AccountDeserialize;
 
 /// VRF CLI - A tool to interact with the Ephemeral VRF program
 #[derive(Parser, Debug)]
@@ -62,6 +61,10 @@ enum Commands {
         /// Queue index
         #[arg(long)]
         index: u8,
+
+        /// Bytes to allocate
+        #[arg(short, long)]
+        bytes_to_allocate: Option<u32>,
     },
 
     /// Delegate an oracle queue
@@ -134,10 +137,14 @@ async fn main() -> Result<()> {
             println!("Removing oracle with identity: {identity}");
             vec![remove_oracle(signer.pubkey(), identity)]
         }
-        Commands::InitializeOracleQueue { identity, index } => {
+        Commands::InitializeOracleQueue {
+            identity,
+            index,
+            bytes_to_allocate,
+        } => {
             let identity = Pubkey::from_str(identity)?;
             println!("Initializing oracle queue for identity: {identity} with index: {index}");
-            initialize_oracle_queue(signer.pubkey(), identity, *index).to_vec()
+            initialize_oracle_queue(signer.pubkey(), identity, *index, *bytes_to_allocate).to_vec()
         }
         Commands::DelegateOracleQueue { queue } => {
             let queue = Pubkey::from_str(queue)?;
