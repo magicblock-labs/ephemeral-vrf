@@ -80,13 +80,13 @@ async fn run_test() {
     // Setup test
     let mut context = setup().await;
     let banks = context.banks_client.clone();
-    let blockhash = context.last_blockhash;
 
     let authority_keypair = Keypair::from_bytes(&TEST_AUTHORITY).unwrap();
     let new_oracle_keypair = Keypair::from_bytes(&TEST_ORACLE).unwrap();
 
     // Submit initialize transaction.
     let ix = initialize(context.payer.pubkey());
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&context.payer.pubkey()),
@@ -112,6 +112,7 @@ async fn run_test() {
         oracle_vrf_pk.compress().to_bytes(),
     );
 
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&authority_keypair.pubkey()),
@@ -147,6 +148,7 @@ async fn run_test() {
     // Submit init oracle queue transaction.
     let target_size = 50_000u32;
     let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 0, Some(target_size));
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &ixs,
         Some(&context.payer.pubkey()),
@@ -171,6 +173,7 @@ async fn run_test() {
 
     // Submit request for randomness transaction.
     let ix = request_randomness(context.payer.pubkey(), 0);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&context.payer.pubkey()),
@@ -240,6 +243,7 @@ async fn run_test() {
         PodScalar(s.to_bytes()),
     );
     let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(2_000_000);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, ix],
         Some(&new_oracle),
@@ -268,6 +272,7 @@ async fn run_test() {
 
     // Add another request, advance slots beyond TTL, then purge expired requests.
     let ix = request_randomness(context.payer.pubkey(), 1);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&context.payer.pubkey()),
@@ -294,6 +299,7 @@ async fn run_test() {
 
     // Purge expired requests
     let purge_ix = purge_expired_requests(new_oracle, 0);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[purge_ix],
         Some(&context.payer.pubkey()),
@@ -315,6 +321,7 @@ async fn run_test() {
     // Initialize a new oracle queue
     let oracle_queue_address_1 = oracle_queue_pda(&new_oracle, 1).0;
     let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 1, Some(10_000));
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &ixs,
         Some(&context.payer.pubkey()),
@@ -326,6 +333,7 @@ async fn run_test() {
 
     // Delegate oracle queue
     let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address_1, 1);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&new_oracle_keypair.pubkey()),
@@ -344,11 +352,12 @@ async fn run_test() {
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
     // Add num_requests to the new oracle queue (index 0)
-    let num_requests = 65;
+    let num_requests = 10;
     println!("\n\nLoop of requests: {num_requests}");
     for i in 0..num_requests {
         println!("\n\nCreating request: {i}");
-        let ix = request_randomness_to_queue(context.payer.pubkey(), i + 100, oracle_queue_address);
+        let ix = request_randomness_to_queue(context.payer.pubkey(), i, oracle_queue_address);
+        let blockhash = banks.get_latest_blockhash().await.unwrap();
         let tx = Transaction::new_signed_with_payer(
             &[ix],
             Some(&context.payer.pubkey()),
@@ -402,6 +411,7 @@ async fn run_test() {
             PodScalar(s.to_bytes()),
         );
         let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(2_000_000);
+        let blockhash = banks.get_latest_blockhash().await.unwrap();
         let tx = Transaction::new_signed_with_payer(
             &[compute_ix, ix],
             Some(&new_oracle),
@@ -415,59 +425,59 @@ async fn run_test() {
         });
     }
 
-    // // Verify oracle queue is empty after consuming 10 requests
-    // let oracle_queue_account = banks
-    //     .get_account(oracle_queue_address)
-    //     .await
-    //     .unwrap()
-    //     .unwrap();
-    // let mut qdata = oracle_queue_account.data.clone();
-    // let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
-    // assert_eq!(queue_acc.len(), 0);
-    //
-    // // Close oracle queue.
-    // let ix = close_oracle_queue(oracle_keypair.pubkey(), 0);
-    // let tx = Transaction::new_signed_with_payer(
-    //     &[ix],
-    //     Some(&oracle_keypair.pubkey()),
-    //     &[&oracle_keypair],
-    //     blockhash,
-    // );
-    // let res = banks.process_transaction(tx).await;
-    // assert!(res.is_ok());
-    //
-    // // Verify oracle queue was closed
-    // let oracle_queue_account = banks
-    //     .get_account(oracle_queue_pda(&oracle, 0).0)
-    //     .await
-    //     .unwrap();
-    // assert!(oracle_queue_account.is_none());
-    //
-    // // Submit remove oracle transaction.
-    // let new_oracle = Pubkey::new_unique();
-    // let ix = remove_oracle(authority_keypair.pubkey(), oracle);
-    // let tx = Transaction::new_signed_with_payer(
-    //     &[ix],
-    //     Some(&authority_keypair.pubkey()),
-    //     &[&authority_keypair],
-    //     blockhash,
-    // );
-    // let res = banks.process_transaction(tx).await;
-    // assert!(res.is_ok());
-    //
-    // // Verify oracle was removed.
-    // let oracles_info = banks.get_account(oracles_address).await.unwrap().unwrap();
-    // let oracles_data = oracles_info.data;
-    // let oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data).unwrap();
-    // assert!(!oracles.oracles.iter().any(|o| o.eq(&oracle)));
-    // assert_eq!(
-    //     oracles_info.lamports,
-    //     banks
-    //         .get_rent()
-    //         .await
-    //         .unwrap()
-    //         .minimum_balance(oracles_data.len())
-    // );
+    // Verify oracle queue is empty after consuming requests
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
+    assert_eq!(queue_acc.len(), 0);
+
+    // Close oracle queue.
+    let ix = close_oracle_queue(new_oracle_keypair.pubkey(), 0);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&new_oracle_keypair.pubkey()),
+        &[&new_oracle_keypair],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Verify oracle queue was closed
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_pda(&new_oracle, 0).0)
+        .await
+        .unwrap();
+    assert!(oracle_queue_account.is_none());
+
+    // Submit remove oracle transaction.
+    let new_oracle = Pubkey::new_unique();
+    let ix = remove_oracle(authority_keypair.pubkey(), new_oracle);
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&authority_keypair.pubkey()),
+        &[&authority_keypair],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Verify oracle was removed.
+    let oracles_info = banks.get_account(oracles_address).await.unwrap().unwrap();
+    let oracles_data = oracles_info.data;
+    let oracles = Oracles::try_from_bytes_with_discriminator(&oracles_data).unwrap();
+    assert!(!oracles.oracles.iter().any(|o| o.eq(&new_oracle)));
+    assert_eq!(
+        oracles_info.lamports,
+        banks
+            .get_rent()
+            .await
+            .unwrap()
+            .minimum_balance(oracles_data.len())
+    );
 }
 
 pub fn request_randomness(signer: Pubkey, client_seed: u8) -> Instruction {

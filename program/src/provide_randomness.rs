@@ -116,7 +116,11 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
         // Remove the item from the queue (capture removed item for building callback)
         let removed_item = queue_acc.remove_item(index)?;
-        msg!("Removing item from the queue, index: {}, new len: {}", index, queue_acc.len());
+        msg!(
+            "Removing item from the queue, index: {}, new len: {}",
+            index,
+            queue_acc.len()
+        );
         // Return the removed item plus a copy of relevant variable data for later CPI
         let metas = removed_item.account_metas(queue_acc.acc).to_vec();
         let disc = removed_item.callback_discriminator(queue_acc.acc).to_vec();
