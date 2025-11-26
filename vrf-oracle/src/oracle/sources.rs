@@ -15,7 +15,6 @@ use helius_laserstream::{
     grpc::{subscribe_update::UpdateOneof, SubscribeUpdate},
     LaserstreamError,
 };
-use steel::AccountDeserialize;
 
 pub struct WebSocketSource {
     pub subscription: Receiver<solana_client::rpc_response::Response<RpcKeyedAccount>>,

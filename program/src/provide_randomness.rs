@@ -82,13 +82,11 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
             // Check that the oracle signer is not in the vrf-macro accounts
             if queue_acc
                 .get_item_by_index(index)
-                .and_then(|it| {
+                .map(|it| {
                     let metas = it.account_metas(queue_acc.acc);
-                    Some(
-                        metas
+                    metas
                             .iter()
-                            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key)),
-                    )
+                            .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
                 })
                 .unwrap_or(false)
             {
