@@ -64,6 +64,9 @@ impl QueueItem {
     pub fn callback_args<'a>(&self, acc: &'a [u8]) -> &'a [u8] {
         let start = self.args_offset as usize;
         let end = start + self.args_len as usize;
+        if end > acc.len() || start > end {
+            return &[];
+        }
         &acc[start..end]
     }
 }
