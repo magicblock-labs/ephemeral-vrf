@@ -248,6 +248,7 @@ pub async fn process_oracle_queue(
 pub struct ProcessableItem(pub QueueItem);
 
 impl ProcessableItem {
+    #[allow(clippy::too_many_arguments)]
     pub async fn process_item(
         &self,
         oracle_client: &OracleClient,

@@ -194,7 +194,7 @@ impl<'a> QueueAccount<'a> {
         let disc_off = self.write_bytes(discriminator)?;
         let disc_len = discriminator.len() as u16;
 
-        let metas_bytes_len = metas.len() * size_of::<SerializableAccountMeta>();
+        let metas_bytes_len = std::mem::size_of_val(metas);
         let metas_bytes =
             unsafe { core::slice::from_raw_parts(metas.as_ptr() as *const u8, metas_bytes_len) };
         let metas_off = self.write_bytes(metas_bytes)?;
