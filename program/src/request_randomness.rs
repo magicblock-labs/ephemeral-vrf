@@ -1,6 +1,5 @@
 use ephemeral_vrf_api::prelude::*;
 use solana_program::hash::hashv;
-use solana_program::msg;
 use solana_program::program::invoke;
 use solana_program::system_instruction;
 use solana_program::sysvar::slot_hashes;
@@ -112,11 +111,6 @@ pub fn process_request_randomness(
             &args.callback_accounts_metas,
             &args.callback_args,
         )?;
-        msg!(
-            "Adding new item to the queue, index: {}, new len: {}",
-            _logical_index,
-            queue_acc.len()
-        );
     }
 
     // Transfer request cost to the queue PDA (unless we are using the default ephemeral queue)

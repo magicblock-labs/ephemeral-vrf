@@ -353,9 +353,7 @@ async fn run_test() {
 
     // Add num_requests to the new oracle queue (index 0)
     let num_requests = 10;
-    println!("\n\nLoop of requests: {num_requests}");
     for i in 0..num_requests {
-        println!("\n\nCreating request: {i}");
         let ix = request_randomness_to_queue(context.payer.pubkey(), i, oracle_queue_address);
         let blockhash = banks.get_latest_blockhash().await.unwrap();
         let tx = Transaction::new_signed_with_payer(
@@ -383,8 +381,7 @@ async fn run_test() {
     context.warp_to_slot(current_slot + 1).unwrap();
 
     // Consume 10 requests from the queue (index 0)
-    for i in 0..num_requests {
-        println!("\n\nConsuming request: {i}");
+    for _ in 0..num_requests {
         // Load the current head item
         let oracle_queue_account = banks
             .get_account(oracle_queue_address)
@@ -419,10 +416,7 @@ async fn run_test() {
             blockhash,
         );
         let res = banks.process_transaction(tx).await;
-        res.unwrap_or_else(|e| {
-            eprintln!("Error: {:?}", e);
-            panic!("res was not ok");
-        });
+        assert!(res.is_ok());
     }
 
     // Verify oracle queue is empty after consuming requests
