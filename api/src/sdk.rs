@@ -172,7 +172,7 @@ pub fn close_oracle_queue(identity: Pubkey, index: u8) -> Instruction {
     Instruction {
         program_id: crate::ID,
         accounts: vec![
-            AccountMeta::new_readonly(identity, true),
+            AccountMeta::new(identity, true),
             AccountMeta::new(oracle_data_pda(&identity).0, false),
             AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
         ],

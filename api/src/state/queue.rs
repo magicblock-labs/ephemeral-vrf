@@ -166,6 +166,11 @@ impl<'a> QueueAccount<'a> {
         metas: &[SerializableAccountMeta],
         args: &[u8],
     ) -> Result<usize, ProgramError> {
+        // Enforce upper bounds on metas and args lengths to prevent oversized QueueItems
+        if metas.len() > 20 || args.len() > 512 {
+            return Err(ProgramError::from(EphemeralVrfError::ArgumentSizeTooLarge));
+        }
+
         // Ensure items area starts at aligned offset; cursor may have been advanced already,
         // so align the cursor up to the QueueItem alignment.
         let items_align = core::mem::align_of::<QueueItem>();
