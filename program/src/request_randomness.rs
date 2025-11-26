@@ -67,6 +67,9 @@ pub fn process_request_randomness(
     {
         // Borrow queue account data and load QueueAccount view
         let mut data = oracle_queue_info.try_borrow_mut_data()?;
+        if data.len() < 8 {
+            return Err(ProgramError::InvalidAccountData);
+        }
         // Skip 8-byte discriminator
         let queue_data = &mut data[8..];
         let mut queue_acc = QueueAccount::load(queue_data)?;
