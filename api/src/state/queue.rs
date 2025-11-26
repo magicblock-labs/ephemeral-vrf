@@ -83,14 +83,13 @@ impl QueueItem {
 )]
 pub struct SerializableAccountMeta {
     pub pubkey: [u8; 32],
-    pub is_signer: u8,
     pub is_writable: u8,
 }
 
 impl SerializableAccountMeta {
     pub fn to_account_meta(&self) -> AccountMeta {
         let pubkey = Pubkey::new_from_array(self.pubkey);
-        let is_signer = self.is_signer != 0;
+        let is_signer = false;
         let is_writable = self.is_writable != 0;
 
         AccountMeta {
