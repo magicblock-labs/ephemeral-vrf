@@ -64,7 +64,6 @@ pub fn process_request_randomness(
     let slot = Clock::get()?.slot;
     let time = Clock::get()?.unix_timestamp;
 
-    // Scope the queue data borrow so it is released before any CPI
     {
         // Borrow queue account data and load QueueAccount view
         let mut data = oracle_queue_info.try_borrow_mut_data()?;

@@ -25,4 +25,3 @@ curve25519-dalek.workspace = true
 borsh.workspace = true
 bincode.workspace = true
 num_enum.workspace = true
-log = "0.4.27"
