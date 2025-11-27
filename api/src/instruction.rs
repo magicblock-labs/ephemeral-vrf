@@ -33,7 +33,7 @@ pub struct ModifyOracle {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable, Default)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
 pub struct InitializeOracleQueue {
     pub target_size: u32,
     pub index: u8,
