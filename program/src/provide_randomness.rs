@@ -82,16 +82,13 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
                 .ok_or::<ProgramError>(EphemeralVrfError::RandomnessRequestNotFound.into())?;
 
             // Check that the oracle signer is not in the vrf-macro accounts
-            if queue_acc
-                .get_item_by_index(index)
-                .map(|it| {
-                    let metas = it.account_metas(queue_acc.acc);
-                    metas
-                        .iter()
-                        .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
-                })
-                .unwrap_or(false)
-            {
+            let oracle_in_accounts = {
+                let metas = item.account_metas(queue_acc.acc);
+                metas
+                    .iter()
+                    .any(|acc| Pubkey::new_from_array(acc.pubkey).eq(oracle_info.key))
+            };
+            if oracle_in_accounts {
                 return Err(EphemeralVrfError::InvalidCallbackAccounts.into());
             }
 
