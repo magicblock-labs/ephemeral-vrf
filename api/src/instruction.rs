@@ -45,7 +45,7 @@ impl InitializeOracleQueue {
         Self {
             target_size,
             index,
-            ..Default::default()
+            _padding: [0; 3],
         }
     }
 }
