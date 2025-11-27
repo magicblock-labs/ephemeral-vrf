@@ -1,6 +1,6 @@
 use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
-use core::mem::size_of;
+use core::mem::{size_of, size_of_val};
 use core::ptr;
 use steel::{AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
@@ -123,6 +123,11 @@ impl<'a> QueueAccount<'a> {
         }
 
         let (header_bytes, _rest) = acc.split_at_mut(header_size);
+        // Validate alignment and size using a safe checked conversion first
+        if bytemuck::try_from_bytes_mut::<Queue>(header_bytes).is_err() {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        // Then form the header reference from the raw pointer to avoid lifetime conflicts
         let header: &mut Queue = unsafe { &mut *(header_bytes.as_mut_ptr() as *mut Queue) };
 
         // If this is a freshly created account, cursor 0 means "no data yet":
@@ -182,9 +187,13 @@ impl<'a> QueueAccount<'a> {
         let items_align = core::mem::align_of::<QueueItem>();
         let aligned = Self::align_up(self.header.cursor as usize, items_align);
         if aligned != self.header.cursor as usize {
-            // write padding zeros if needed
-            let pad = vec![0u8; aligned - self.header.cursor as usize];
-            self.write_bytes(&pad)?;
+            let start = self.header.cursor as usize;
+            let end = aligned;
+            if end > self.acc.len() {
+                return Err(ProgramError::AccountDataTooSmall);
+            }
+            self.acc[start..end].fill(0);
+            self.header.cursor = end as u32;
         }
 
         // Reserve space for the item so items are contiguous
@@ -200,7 +209,7 @@ impl<'a> QueueAccount<'a> {
         let disc_off = self.write_bytes(discriminator)?;
         let disc_len = discriminator.len() as u16;
 
-        let metas_bytes_len = std::mem::size_of_val(metas);
+        let metas_bytes_len = size_of_val(metas);
         let metas_bytes =
             unsafe { core::slice::from_raw_parts(metas.as_ptr() as *const u8, metas_bytes_len) };
         let metas_off = self.write_bytes(metas_bytes)?;

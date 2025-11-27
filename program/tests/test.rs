@@ -475,34 +475,9 @@ async fn run_test() {
 }
 
 pub fn request_randomness(signer: Pubkey, client_seed: u8) -> Instruction {
-    // Constants from the integration test instruction layout (IDL)
-    const DISCRIMINATOR: [u8; 8] = [213, 5, 173, 166, 37, 236, 31, 18];
-
-    // Default addresses as per instruction
+    // Forward to the generic helper, using the default oracle queue used previously
     let oracle_queue = pubkey!("GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb");
-
-    // Program identity PDA (seeded with "identity")
-    let (program_identity, _) = Pubkey::find_program_address(&[IDENTITY], &TEST_CALLBACK_PROGRAM);
-
-    // Construct account metas
-    let accounts = vec![
-        AccountMeta::new(signer, true),
-        AccountMeta::new_readonly(program_identity, false),
-        AccountMeta::new(oracle_queue, false),
-        AccountMeta::new_readonly(system_program::ID, false),
-        AccountMeta::new_readonly(slot_hashes::ID, false),
-        AccountMeta::new_readonly(ephemeral_vrf_api::ID, false),
-    ];
-
-    // Instruction data: discriminator + client_seed
-    let mut data = DISCRIMINATOR.to_vec();
-    data.push(client_seed);
-
-    Instruction {
-        program_id: TEST_CALLBACK_PROGRAM,
-        accounts,
-        data,
-    }
+    request_randomness_to_queue(signer, client_seed, oracle_queue)
 }
 
 pub fn request_randomness_to_queue(
