@@ -52,8 +52,8 @@ pub struct OracleClient {
 
 #[async_trait]
 pub trait QueueUpdateSource: Send {
-    // Returns: (queue pubkey, queue data, optional notification slot)
-    async fn next(&mut self) -> Option<(Pubkey, Queue, u64)>;
+    // Returns: (queue pubkey, queue data, full account bytes, optional notification slot)
+    async fn next(&mut self) -> Option<(Pubkey, Queue, Vec<u8>, u64)>;
 }
 
 impl OracleClient {
@@ -125,27 +125,18 @@ impl OracleClient {
             match self.create_update_source().await {
                 Ok(mut source) => {
                     info!("Update source connected successfully");
-                    while let Some((pubkey, queue, notification_slot)) = source.next().await {
-                        // Fetch full account bytes for this queue pubkey to access variable region
-                        match rpc_client.get_account(&pubkey).await {
-                            Ok(acc) => {
-                                let bytes = Arc::new(acc.data);
-                                process_oracle_queue(
-                                    &self,
-                                    &rpc_client,
-                                    &blockhash_cache,
-                                    &pubkey,
-                                    &queue,
-                                    bytes,
-                                    Some(notification_slot),
-                                )
-                                .await;
-                            }
-                            Err(err) => {
-                                warn!("Failed to fetch account data for queue {}: {err:?}", pubkey);
-                                continue;
-                            }
-                        }
+                    while let Some((pubkey, queue, bytes, notification_slot)) = source.next().await {
+                        let bytes = Arc::new(bytes);
+                        process_oracle_queue(
+                            &self,
+                            &rpc_client,
+                            &blockhash_cache,
+                            &pubkey,
+                            &queue,
+                            bytes,
+                            Some(notification_slot),
+                        )
+                        .await;
                     }
                     drop(source);
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
