@@ -125,7 +125,8 @@ impl OracleClient {
             match self.create_update_source().await {
                 Ok(mut source) => {
                     info!("Update source connected successfully");
-                    while let Some((pubkey, queue, bytes, notification_slot)) = source.next().await {
+                    while let Some((pubkey, queue, bytes, notification_slot)) = source.next().await
+                    {
                         let bytes = Arc::new(bytes);
                         process_oracle_queue(
                             &self,
