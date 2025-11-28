@@ -192,7 +192,7 @@ pub async fn process_oracle_queue(
                                         Err(_) => {
                                             warn!("Failed to parse signature");
                                             attempts += 1;
-                                            sleep(Duration::from_millis(10 * attempts)).await;
+                                            sleep(Duration::from_millis(20 * attempts)).await;
                                             continue;
                                         }
                                     };
@@ -202,6 +202,7 @@ pub async fn process_oracle_queue(
                                     Err(_) => {
                                         warn!("Failed to confirm transaction");
                                         attempts += 1;
+                                        sleep(Duration::from_millis(20 * attempts)).await;
                                         continue;
                                     }
                                 };
@@ -211,12 +212,14 @@ pub async fn process_oracle_queue(
                                     break;
                                 } else {
                                     warn!("Transaction failed");
+                                    sleep(Duration::from_millis(20 * attempts)).await;
                                     attempts += 1;
                                 }
                             }
                             Err(e) => {
                                 error!("Failed to send transaction: {e:?}");
                                 attempts += 1;
+                                sleep(Duration::from_millis(20 * attempts)).await;
                                 blockhash_cache.refresh_blockhash().await;
                             }
                         }
@@ -301,7 +304,7 @@ impl ProcessableItem {
             .send_transaction_with_config(
                 &tx,
                 RpcSendTransactionConfig {
-                    skip_preflight: true,
+                    skip_preflight: oracle_client.skip_preflight,
                     preflight_commitment: Some(
                         solana_sdk::commitment_config::CommitmentLevel::Processed,
                     ),

@@ -20,4 +20,8 @@ pub struct Args {
 
     #[arg(long, env = "VRF_ORACLE_HTTP_PORT")]
     pub http_port: Option<u16>,
+
+    // Whether to skip preflight when submitting transactions
+    #[arg(long, env = "VRF_ORACLE_SKIP_PREFLIGHT", default_value_t = true)]
+    pub skip_preflight: bool,
 }
