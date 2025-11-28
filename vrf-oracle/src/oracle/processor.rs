@@ -206,16 +206,17 @@ pub async fn process_oracle_queue(
                                 Err(_) => {
                                     warn!("Failed to parse signature");
                                     attempts += 1;
-                                    sleep(Duration::from_millis(10 * attempts)).await;
+                                    sleep(Duration::from_millis(20 * attempts)).await;
                                     continue;
                                 }
                             };
 
                             let success = match rpc_client.confirm_transaction(&sig).await {
                                 Ok(success) => success,
-                                Err(e) => {
-                                    warn!("Failed to confirm transaction, with error: {e}");
+                                Err(_) => {
+                                    warn!("Failed to confirm transaction");
                                     attempts += 1;
+                                    sleep(Duration::from_millis(20 * attempts)).await;
                                     continue;
                                 }
                             };
@@ -226,11 +227,14 @@ pub async fn process_oracle_queue(
                             } else {
                                 warn!("Transaction failed");
                                 attempts += 1;
+                                sleep(Duration::from_millis(20 * attempts)).await;
+                                blockhash_cache.refresh_blockhash().await;
                             }
                         }
                         Err(e) => {
                             error!("Failed to send transaction: {e:?}");
                             attempts += 1;
+                            sleep(Duration::from_millis(20 * attempts)).await;
                             blockhash_cache.refresh_blockhash().await;
                         }
                     }
@@ -315,7 +319,7 @@ impl ProcessableItem {
             .send_transaction_with_config(
                 &tx,
                 RpcSendTransactionConfig {
-                    skip_preflight: true,
+                    skip_preflight: oracle_client.skip_preflight,
                     preflight_commitment: Some(
                         solana_sdk::commitment_config::CommitmentLevel::Processed,
                     ),
