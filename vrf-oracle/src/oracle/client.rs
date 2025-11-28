@@ -48,6 +48,8 @@ pub struct OracleClient {
     pub response_counts: Arc<RwLock<HashMap<String, u64>>>,
     // In-flight requests per queue: request_id -> enqueue slot
     pub inflight_requests: Arc<RwLock<InflightRequestsMap>>,
+    // Whether to skip preflight when sending transactions
+    pub skip_preflight: bool,
 }
 
 #[async_trait]
@@ -63,6 +65,7 @@ impl OracleClient {
         websocket_url: String,
         laserstream_endpoint: Option<String>,
         laserstream_api_key: Option<String>,
+        skip_preflight: bool,
     ) -> Self {
         let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&keypair);
         Self {
@@ -77,6 +80,7 @@ impl OracleClient {
             avg_response_slots: Arc::new(RwLock::new(HashMap::new())),
             response_counts: Arc::new(RwLock::new(HashMap::new())),
             inflight_requests: Arc::new(RwLock::new(HashMap::new())),
+            skip_preflight,
         }
     }
 
