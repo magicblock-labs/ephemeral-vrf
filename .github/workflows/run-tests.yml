@@ -1,4 +1,5 @@
 name: Run Tests
+
 on:
   push:
     branches:
@@ -6,7 +7,8 @@ on:
   pull_request:
 
 env:
-  solana_version: stable
+  solana_version: v2.1.21
+  anchor_version: 0.31.1
   rust_version: stable
 
 jobs:
@@ -53,7 +55,6 @@ jobs:
   lint:
     needs: setup
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - name: Run fmt
@@ -67,6 +68,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/cache@v4
         name: cache solana cli
         id: cache-solana
