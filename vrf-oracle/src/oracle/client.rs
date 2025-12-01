@@ -1,5 +1,3 @@
-use std::{collections::HashMap, sync::Arc};
-
 use anyhow::Result;
 use async_trait::async_trait;
 use solana_client::{
@@ -7,6 +5,7 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
 };
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 
 use helius_laserstream::{
@@ -49,6 +48,8 @@ pub struct OracleClient {
     pub response_counts: Arc<RwLock<HashMap<String, u64>>>,
     // In-flight requests per queue: request_id -> enqueue slot
     pub inflight_requests: Arc<RwLock<InflightRequestsMap>>,
+    // Whether to skip preflight when sending transactions
+    pub skip_preflight: bool,
 }
 
 #[async_trait]
@@ -64,6 +65,7 @@ impl OracleClient {
         websocket_url: String,
         laserstream_endpoint: Option<String>,
         laserstream_api_key: Option<String>,
+        skip_preflight: bool,
     ) -> Self {
         let (oracle_vrf_sk, oracle_vrf_pk) = generate_vrf_keypair(&keypair);
         Self {
@@ -78,6 +80,7 @@ impl OracleClient {
             avg_response_slots: Arc::new(RwLock::new(HashMap::new())),
             response_counts: Arc::new(RwLock::new(HashMap::new())),
             inflight_requests: Arc::new(RwLock::new(HashMap::new())),
+            skip_preflight,
         }
     }
 

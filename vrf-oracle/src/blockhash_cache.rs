@@ -86,4 +86,16 @@ impl BlockhashCache {
         cache.counter = (cache.counter + 1) % 11;
         (cache.blockhash, cache.slot)
     }
+
+    pub async fn refresh_blockhash(&self) {
+        let initial_blockhash = self
+            .client
+            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+            .await;
+        if let Ok(new_blockhash) = initial_blockhash {
+            let mut cache = self.inner.write().await;
+            cache.blockhash = new_blockhash.0;
+            cache.timestamp = Instant::now();
+        }
+    }
 }

@@ -112,20 +112,22 @@ pub fn process_request_randomness(
     // Add the item to the queue
     oracle_queue.add_item(item)?;
 
-    // Transfer request cost to the queue PDA
-    let cost = if high_priority {
-        VRF_HIGH_PRIORITY_LAMPORTS_COST
-    } else {
-        VRF_LAMPORTS_COST
-    };
-    invoke(
-        &system_instruction::transfer(signer_info.key, oracle_queue_info.key, cost),
-        &[
-            signer_info.clone(),
-            oracle_queue_info.clone(),
-            system_program_info.clone(),
-        ],
-    )?;
+    // Transfer request cost to the queue PDA (unless we are using the default ephemeral queue)
+    if oracle_queue_info.key.ne(&DEFAULT_EPHEMERAL_QUEUE) {
+        let cost = if high_priority {
+            VRF_HIGH_PRIORITY_LAMPORTS_COST
+        } else {
+            VRF_LAMPORTS_COST
+        };
+        invoke(
+            &system_instruction::transfer(signer_info.key, oracle_queue_info.key, cost),
+            &[
+                signer_info.clone(),
+                oracle_queue_info.clone(),
+                system_program_info.clone(),
+            ],
+        )?;
+    }
 
     Ok(())
 }

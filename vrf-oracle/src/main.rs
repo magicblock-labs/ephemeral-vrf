@@ -75,6 +75,7 @@ async fn main() -> Result<()> {
         args.websocket_url,
         args.laserstream_endpoint,
         args.laserstream_api_key,
+        args.skip_preflight,
     ));
 
     // Start minimal HTTP server exposing /stats
