@@ -89,12 +89,13 @@ jobs:
           cd program && cargo build-sbf --features test-sbf
 
       - name: run integration tests
+        working-directory: program/tests/integration/use-randomness
         run: |
-          export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
-          npm install -g @magicblock-labs/bolt-cli
-          cd program/tests/integration/use-randomness
+          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          cargo install --locked --version ${{ env.anchor_version }} anchor-cli
+          anchor --version
           npm install
-          bolt test
+          anchor test
 
       - name: run tests
         run: |
