@@ -3,7 +3,9 @@ use crate::oracle::client::OracleClient;
 use anyhow::Result;
 use ephemeral_vrf::vrf::{compute_vrf, verify_vrf};
 use ephemeral_vrf_api::{
-    prelude::{provide_randomness, purge_expired_requests, Queue, QueueItem, QUEUE_TTL_SLOTS},
+    prelude::{
+        provide_randomness, purge_expired_requests, Queue, QueueAccount, QueueItem, QUEUE_TTL_SLOTS,
+    },
     state::oracle_queue_pda,
     ID as PROGRAM_ID,
 };
@@ -22,7 +24,6 @@ use solana_sdk::{
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
-use steel::AccountDeserialize;
 use tokio::task;
 use tokio::time::sleep;
 
@@ -72,6 +73,7 @@ pub async fn fetch_and_process_program_accounts(
                     &blockhash_cache,
                     &pubkey,
                     queue,
+                    Arc::clone(&bytes),
                     None,
                 )
                 .await
@@ -95,6 +97,7 @@ pub async fn process_oracle_queue(
     blockhash_cache: &BlockhashCache,
     queue: &Pubkey,
     oracle_queue: &Queue,
+    account_bytes: Arc<Vec<u8>>,
     notification_slot: Option<u64>,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
@@ -112,7 +115,18 @@ pub async fn process_oracle_queue(
         // Build a set of current request IDs and a map of their enqueue slots from the queue
         let mut current_ids: HashSet<[u8; 32]> = HashSet::new();
         let mut current_slots_by_id: HashMap<[u8; 32], u64> = HashMap::new();
-        for item in oracle_queue.iter_items() {
+
+        // Construct a read-only view over the queue items using a local mutable copy
+        let mut acc_bytes = account_bytes[8..].to_vec(); // strip discriminator
+        let queue_account = match QueueAccount::load(&mut acc_bytes[..]) {
+            Ok(q) => q,
+            Err(e) => {
+                warn!("Failed to load QueueAccount for {}: {}", queue, e);
+                return;
+            }
+        };
+
+        for item in queue_account.iter_items() {
             current_ids.insert(item.id);
             current_slots_by_id.insert(item.id, item.slot);
         }
@@ -156,77 +170,79 @@ pub async fn process_oracle_queue(
         // Process items (send transactions)
         // Take an owned snapshot of the queue metadata and items so spawned tasks don't borrow `oracle_queue`.
         let queue_meta = Arc::new(*oracle_queue);
-        let items: Vec<QueueItem> = oracle_queue.iter_items().cloned().collect();
+        let items: Vec<QueueItem> = queue_account.iter_items().collect();
 
-        let tasks = items
-            .into_iter()
-            .map(|item| {
-                let oracle_client = Arc::clone(oracle_client);
-                let rpc_client = Arc::clone(rpc_client);
-                let blockhash_cache = blockhash_cache.clone();
-                let queue = *queue;
-                let oracle_queue = Arc::clone(&queue_meta);
-                let input_seed = item.id;
+        let mut tasks = Vec::new();
+        for item in items.into_iter() {
+            let oracle_client = Arc::clone(oracle_client);
+            let rpc_client = Arc::clone(rpc_client);
+            let blockhash_cache = blockhash_cache.clone();
+            let queue = *queue;
+            let oracle_queue = Arc::clone(&queue_meta);
+            let account_bytes_task = Arc::clone(&account_bytes);
+            let input_seed = item.id;
 
-                tokio::spawn(async move {
-                    let mut attempts = 0;
+            let handle = tokio::spawn(async move {
+                let mut attempts = 0;
 
-                    while attempts < 10 {
-                        match ProcessableItem(item)
-                            .process_item(
-                                &oracle_client,
-                                &rpc_client,
-                                &blockhash_cache,
-                                &input_seed,
-                                &queue,
-                                &oracle_queue,
-                            )
-                            .await
-                        {
-                            Ok(signature) => {
-                                info!("Transaction signature: {signature}");
+                while attempts < 10 {
+                    match ProcessableItem(item)
+                        .process_item(
+                            &oracle_client,
+                            &rpc_client,
+                            &blockhash_cache,
+                            &input_seed,
+                            &queue,
+                            &oracle_queue,
+                            account_bytes_task.as_slice(),
+                        )
+                        .await
+                    {
+                        Ok(signature) => {
+                            info!("Transaction signature: {signature}");
 
-                                let sig =
-                                    match signature.parse::<solana_sdk::signature::Signature>() {
-                                        Ok(sig) => sig,
-                                        Err(_) => {
-                                            warn!("Failed to parse signature");
-                                            attempts += 1;
-                                            sleep(Duration::from_millis(20 * attempts)).await;
-                                            continue;
-                                        }
-                                    };
-
-                                let success = match rpc_client.confirm_transaction(&sig).await {
-                                    Ok(success) => success,
-                                    Err(_) => {
-                                        warn!("Failed to confirm transaction");
-                                        attempts += 1;
-                                        sleep(Duration::from_millis(20 * attempts)).await;
-                                        continue;
-                                    }
-                                };
-
-                                if success {
-                                    info!("Transaction successfully confirmed");
-                                    break;
-                                } else {
-                                    warn!("Transaction failed");
-                                    sleep(Duration::from_millis(20 * attempts)).await;
+                            let sig = match signature.parse::<solana_sdk::signature::Signature>() {
+                                Ok(sig) => sig,
+                                Err(_) => {
+                                    warn!("Failed to parse signature");
                                     attempts += 1;
+                                    sleep(Duration::from_millis(20 * attempts)).await;
+                                    continue;
                                 }
-                            }
-                            Err(e) => {
-                                error!("Failed to send transaction: {e:?}");
+                            };
+
+                            let success = match rpc_client.confirm_transaction(&sig).await {
+                                Ok(success) => success,
+                                Err(_) => {
+                                    warn!("Failed to confirm transaction");
+                                    attempts += 1;
+                                    sleep(Duration::from_millis(20 * attempts)).await;
+                                    continue;
+                                }
+                            };
+
+                            if success {
+                                info!("Transaction successfully confirmed");
+                                break;
+                            } else {
+                                warn!("Transaction failed");
                                 attempts += 1;
                                 sleep(Duration::from_millis(20 * attempts)).await;
                                 blockhash_cache.refresh_blockhash().await;
                             }
                         }
+                        Err(e) => {
+                            error!("Failed to send transaction: {e:?}");
+                            attempts += 1;
+                            sleep(Duration::from_millis(20 * attempts)).await;
+                            blockhash_cache.refresh_blockhash().await;
+                        }
                     }
-                })
-            })
-            .collect::<Vec<_>>();
+                }
+            });
+
+            tasks.push(handle);
+        }
 
         join_all(tasks).await;
     }
@@ -236,6 +252,7 @@ pub async fn process_oracle_queue(
 pub struct ProcessableItem(pub QueueItem);
 
 impl ProcessableItem {
+    #[allow(clippy::too_many_arguments)]
     pub async fn process_item(
         &self,
         oracle_client: &OracleClient,
@@ -244,6 +261,7 @@ impl ProcessableItem {
         vrf_input: &[u8; 32],
         queue_pubkey: &Pubkey,
         queue_meta: &Queue,
+        account_bytes: &[u8],
     ) -> Result<String> {
         let (output, (commitment_base, commitment_hash, s)) =
             compute_vrf(oracle_client.oracle_vrf_sk, vrf_input);
@@ -274,12 +292,9 @@ impl ProcessableItem {
                 PodRistrettoPoint(commitment_hash.to_bytes()),
                 PodScalar(s.to_bytes()),
             );
-            ix.accounts.extend(
-                self.0
-                    .callback_accounts_meta
-                    .iter()
-                    .map(|a| a.to_account_meta()),
-            );
+            let metas = self.0.account_metas(&account_bytes[8..]);
+            ix.accounts
+                .extend(metas.iter().map(|a| a.to_account_meta()));
             ix
         };
 

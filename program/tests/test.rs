@@ -80,13 +80,13 @@ async fn run_test() {
     // Setup test
     let mut context = setup().await;
     let banks = context.banks_client.clone();
-    let blockhash = context.last_blockhash;
 
     let authority_keypair = Keypair::from_bytes(&TEST_AUTHORITY).unwrap();
     let new_oracle_keypair = Keypair::from_bytes(&TEST_ORACLE).unwrap();
 
     // Submit initialize transaction.
     let ix = initialize(context.payer.pubkey());
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&context.payer.pubkey()),
@@ -112,6 +112,7 @@ async fn run_test() {
         oracle_vrf_pk.compress().to_bytes(),
     );
 
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&authority_keypair.pubkey()),
@@ -145,7 +146,9 @@ async fn run_test() {
     context.warp_to_slot(current_slot + 200).unwrap();
 
     // Submit init oracle queue transaction.
-    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 0);
+    let target_size = 50_000u32;
+    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 0, Some(target_size));
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &ixs,
         Some(&context.payer.pubkey()),
@@ -162,12 +165,15 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data);
+    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.unwrap().item_count, 0);
+    assert_eq!(oracle_queue_account.data.len(), target_size as usize);
+    assert_eq!(oracle_queue.index, 0);
+    assert_eq!(oracle_queue.item_count, 0);
 
     // Submit request for randomness transaction.
     let ix = request_randomness(context.payer.pubkey(), 0);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&context.payer.pubkey()),
@@ -184,9 +190,10 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.len(), 1);
+    assert_eq!(queue_acc.len(), 1);
 
     // Verify cost of the vrf was collected in the oracle queue account.
     assert_eq!(
@@ -204,7 +211,14 @@ async fn run_test() {
     context.warp_to_slot(current_slot + 1).unwrap();
 
     // Compute off-chain VRF
-    let vrf_input = oracle_queue.iter_items().next().unwrap().clone().id;
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut qdata2 = oracle_queue_account.data.clone();
+    let queue_acc2 = QueueAccount::load(&mut qdata2[8..]).unwrap();
+    let vrf_input = queue_acc2.get_item_by_index(0).unwrap().id;
     let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
         compute_vrf(oracle_vrf_sk, &vrf_input);
 
@@ -229,6 +243,7 @@ async fn run_test() {
         PodScalar(s.to_bytes()),
     );
     let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(2_000_000);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[compute_ix, ix],
         Some(&new_oracle),
@@ -242,9 +257,10 @@ async fn run_test() {
         .await
         .unwrap()
         .unwrap();
-    let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
     assert_eq!(oracle_queue_account.owner, ephemeral_vrf_api::ID);
-    assert_eq!(oracle_queue.len(), 0);
+    assert_eq!(queue_acc.len(), 0);
     assert_eq!(
         oracle_queue_account.lamports,
         banks
@@ -256,6 +272,7 @@ async fn run_test() {
 
     // Add another request, advance slots beyond TTL, then purge expired requests.
     let ix = request_randomness(context.payer.pubkey(), 1);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&context.payer.pubkey()),
@@ -282,6 +299,7 @@ async fn run_test() {
 
     // Purge expired requests
     let purge_ix = purge_expired_requests(new_oracle, 0);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[purge_ix],
         Some(&context.payer.pubkey()),
@@ -300,8 +318,22 @@ async fn run_test() {
     let oracle_queue = Queue::try_from_bytes(&oracle_queue_account.data).unwrap();
     assert_eq!(oracle_queue.len(), 0);
 
-    // Delegate oracle queue to new vrf-macro
-    let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address, 0);
+    // Initialize a new oracle queue
+    let oracle_queue_address_1 = oracle_queue_pda(&new_oracle, 1).0;
+    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 1, Some(10_000));
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
+    let tx = Transaction::new_signed_with_payer(
+        &ixs,
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &new_oracle_keypair],
+        blockhash,
+    );
+    let res = banks.process_transaction(tx).await;
+    assert!(res.is_ok());
+
+    // Delegate oracle queue
+    let ix = delegate_oracle_queue(new_oracle_keypair.pubkey(), oracle_queue_address_1, 1);
+    let blockhash = banks.get_latest_blockhash().await.unwrap();
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&new_oracle_keypair.pubkey()),
@@ -313,25 +345,92 @@ async fn run_test() {
 
     // Verify delegation was successful by checking the queue account owner
     let oracle_queue_account = banks
-        .get_account(oracle_queue_address)
+        .get_account(oracle_queue_address_1)
         .await
         .unwrap()
         .unwrap();
     assert_eq!(oracle_queue_account.owner, DELEGATION_PROGRAM_ID);
 
-    // Initialize a new oracle queue
-    let ixs = initialize_oracle_queue(context.payer.pubkey(), new_oracle, 1);
-    let tx = Transaction::new_signed_with_payer(
-        &ixs,
-        Some(&context.payer.pubkey()),
-        &[&context.payer, &new_oracle_keypair],
-        blockhash,
-    );
-    let res = banks.process_transaction(tx).await;
-    assert!(res.is_ok());
+    // Add num_requests to the new oracle queue (index 0)
+    let num_requests = 10;
+    for i in 0..num_requests {
+        let ix = request_randomness_to_queue(context.payer.pubkey(), i, oracle_queue_address);
+        let blockhash = banks.get_latest_blockhash().await.unwrap();
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&context.payer.pubkey()),
+            &[&context.payer],
+            blockhash,
+        );
+        let res = banks.process_transaction(tx).await;
+        assert!(res.is_ok());
+    }
+
+    // Verify num_requests were added
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
+    assert_eq!(queue_acc.len(), num_requests as usize);
+
+    // Increase the slot
+    let current_slot = banks.get_sysvar::<Clock>().await.unwrap().slot;
+    context.warp_to_slot(current_slot + 1).unwrap();
+
+    // Consume 10 requests from the queue (index 0)
+    for _ in 0..num_requests {
+        // Load the current head item
+        let oracle_queue_account = banks
+            .get_account(oracle_queue_address)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut qdata2 = oracle_queue_account.data.clone();
+        let queue_acc2 = QueueAccount::load(&mut qdata2[8..]).unwrap();
+        let vrf_input = queue_acc2.get_item_by_index(0).unwrap().id;
+
+        // Compute off-chain VRF
+        let (output, (commitment_base_compressed, commitment_hash_compressed, s)) =
+            compute_vrf(oracle_vrf_sk, &vrf_input);
+
+        // Provide randomness (consume the request)
+        let ix = provide_randomness(
+            new_oracle,
+            oracle_queue_address,
+            TEST_CALLBACK_PROGRAM,
+            vrf_input,
+            PodRistrettoPoint(output.to_bytes()),
+            PodRistrettoPoint(commitment_base_compressed.to_bytes()),
+            PodRistrettoPoint(commitment_hash_compressed.to_bytes()),
+            PodScalar(s.to_bytes()),
+        );
+        let compute_ix = ComputeBudgetInstruction::set_compute_unit_limit(2_000_000);
+        let blockhash = banks.get_latest_blockhash().await.unwrap();
+        let tx = Transaction::new_signed_with_payer(
+            &[compute_ix, ix],
+            Some(&new_oracle),
+            &[&new_oracle_keypair],
+            blockhash,
+        );
+        let res = banks.process_transaction(tx).await;
+        assert!(res.is_ok());
+    }
+
+    // Verify oracle queue is empty after consuming requests
+    let oracle_queue_account = banks
+        .get_account(oracle_queue_address)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut qdata = oracle_queue_account.data.clone();
+    let queue_acc = QueueAccount::load(&mut qdata[8..]).unwrap();
+    assert_eq!(queue_acc.len(), 0);
 
     // Close oracle queue.
-    let ix = close_oracle_queue(new_oracle_keypair.pubkey(), 1);
+    let ix = close_oracle_queue(new_oracle_keypair.pubkey(), 0);
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&new_oracle_keypair.pubkey()),
@@ -343,7 +442,7 @@ async fn run_test() {
 
     // Verify oracle queue was closed
     let oracle_queue_account = banks
-        .get_account(oracle_queue_pda(&new_oracle, 1).0)
+        .get_account(oracle_queue_pda(&new_oracle, 0).0)
         .await
         .unwrap();
     assert!(oracle_queue_account.is_none());
@@ -376,16 +475,23 @@ async fn run_test() {
 }
 
 pub fn request_randomness(signer: Pubkey, client_seed: u8) -> Instruction {
-    // Constants from the integration test instruction layout (IDL)
-    const DISCRIMINATOR: [u8; 8] = [213, 5, 173, 166, 37, 236, 31, 18];
-
-    // Default addresses as per instruction
+    // Forward to the generic helper, using the default oracle queue used previously
     let oracle_queue = pubkey!("GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb");
+    request_randomness_to_queue(signer, client_seed, oracle_queue)
+}
+
+pub fn request_randomness_to_queue(
+    signer: Pubkey,
+    client_seed: u8,
+    oracle_queue: Pubkey,
+) -> Instruction {
+    // Same discriminator used by the integration test callback program
+    const DISCRIMINATOR: [u8; 8] = [213, 5, 173, 166, 37, 236, 31, 18];
 
     // Program identity PDA (seeded with "identity")
     let (program_identity, _) = Pubkey::find_program_address(&[IDENTITY], &TEST_CALLBACK_PROGRAM);
 
-    // Construct account metas
+    // Construct account metas targeting the provided oracle_queue
     let accounts = vec![
         AccountMeta::new(signer, true),
         AccountMeta::new_readonly(program_identity, false),

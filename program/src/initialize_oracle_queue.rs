@@ -79,7 +79,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     let seeds: &[&[u8]] = &[QUEUE, oracle_key_ref, &[args.index]];
     let bump = Pubkey::find_program_address(seeds, &ephemeral_vrf_api::ID).1;
 
-    let target_size = Queue::size_with_discriminator();
+    let target_size = args.target_size as usize;
     let current_size = oracle_queue_info.data_len();
 
     let extra_bytes = target_size.saturating_sub(current_size);
@@ -122,10 +122,15 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         resize_pda(signer_info, oracle_queue_info, system_program, target_size)?;
     }
 
-    // Set discriminator and initialize queue
-    oracle_queue_info.data.borrow_mut()[0] = AccountDiscriminator::Queue as u8;
-    let queue = oracle_queue_info.as_account_mut::<Queue>(&ephemeral_vrf_api::ID)?;
-    queue.index = args.index;
+    // Set discriminator and initialize queue header using zero-copy view
+    {
+        let mut data = oracle_queue_info.data.borrow_mut();
+        let disc = AccountDiscriminator::Queue.to_bytes();
+        data[..8].copy_from_slice(&disc);
+        let acc_without_disc = &mut data[8..];
+        let qacc = QueueAccount::load(acc_without_disc)?;
+        qacc.header.index = args.index;
+    }
 
     // Increment oracle's open queue count
     let oracle_data_mut = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;

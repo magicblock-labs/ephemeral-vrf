@@ -68,9 +68,15 @@ pub fn remove_oracle(signer: Pubkey, identity: Pubkey) -> Instruction {
 /// Returns a list of instructions to initialize an oracle queue. The initialize_oracle_queue is
 /// repeated to alloc chunks of 10240 bytes, which is the maximum per instruction.
 /// Should still be run in a single transaction.
-pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> Vec<Instruction> {
-    let inits = Queue::size_with_discriminator().div_ceil(10240);
-    let mut ixs = Vec::with_capacity(inits);
+pub fn initialize_oracle_queue(
+    signer: Pubkey,
+    identity: Pubkey,
+    index: u8,
+    bytes_to_allocate: Option<u32>,
+) -> Vec<Instruction> {
+    let target_size = bytes_to_allocate.unwrap_or(9500);
+    let inits = target_size.div_ceil(10240);
+    let mut ixs = Vec::with_capacity(inits as usize);
     for _ in 0..inits {
         ixs.push(Instruction {
             program_id: ID,
@@ -81,7 +87,7 @@ pub fn initialize_oracle_queue(signer: Pubkey, identity: Pubkey, index: u8) -> V
                 AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
                 AccountMeta::new_readonly(system_program::ID, false),
             ],
-            data: InitializeOracleQueue { index }.to_bytes(),
+            data: InitializeOracleQueue::new(index, target_size).to_bytes(),
         })
     }
     ixs
@@ -166,7 +172,7 @@ pub fn close_oracle_queue(identity: Pubkey, index: u8) -> Instruction {
     Instruction {
         program_id: crate::ID,
         accounts: vec![
-            AccountMeta::new_readonly(identity, true),
+            AccountMeta::new(identity, true),
             AccountMeta::new(oracle_data_pda(&identity).0, false),
             AccountMeta::new(oracle_queue_pda(&identity, index).0, false),
         ],
