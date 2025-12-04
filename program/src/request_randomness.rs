@@ -1,8 +1,8 @@
 use ephemeral_vrf_api::prelude::*;
 use solana_program::hash::hashv;
 use solana_program::program::invoke;
+use solana_program::system_instruction;
 use solana_program::sysvar::slot_hashes;
-use solana_program::{msg, system_instruction};
 use steel::*;
 
 /// Process a request for randomness
@@ -120,8 +120,6 @@ pub fn process_request_randomness(
             &args.callback_args,
         )?;
     }
-
-    msg!("Callback {:?}", args.callback_accounts_metas);
 
     // Transfer request cost to the queue PDA (unless we are using the default ephemeral queue)
     if oracle_queue_info.key.ne(&DEFAULT_EPHEMERAL_QUEUE) {
