@@ -108,8 +108,8 @@ pub mod use_randomness {
             random_u8_with_range(&randomness, 1, 6)
         );
         msg!("Consuming random bool: {:?}", random_bool(&randomness));
-        if ctx.remaining_accounts.len() > 0 {
-            msg!("First reaming account: {:?}", ctx.remaining_accounts.first());
+        if !ctx.remaining_accounts.is_empty() {
+            msg!("First remaining account: {:?}", ctx.remaining_accounts.first());
             assert!(ctx.remaining_accounts.first().unwrap().is_writable);
         }
         Ok(())
