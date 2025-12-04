@@ -54,6 +54,10 @@ impl QueueItem {
         let byte_len = count * size_of::<CompactAccountMeta>();
         let end = start + byte_len;
 
+        if end > acc.len() || start > end {
+            return &[];
+        }
+
         let bytes = &acc[start..end];
 
         unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const CompactAccountMeta, count) }
