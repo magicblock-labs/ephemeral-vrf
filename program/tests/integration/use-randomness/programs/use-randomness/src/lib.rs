@@ -12,6 +12,7 @@ use ephemeral_vrf_sdk::instructions::{
     create_request_randomness_ix, create_request_regular_randomness_ix,
 };
 use ephemeral_vrf_sdk::rnd::{random_bool, random_u32, random_u8_with_range};
+use ephemeral_vrf_sdk::types::SerializableAccountMeta;
 
 declare_id!("CDiutifqugEkabdqwc5TK3FmSAgFpkP3RPE1642BCEhi");
 
@@ -50,13 +51,18 @@ pub mod use_randomness {
         ctx: Context<RequestRandomnessSimplerCtx>,
         client_seed: u8,
     ) -> Result<()> {
-        msg!("Generating a random number");
+        msg!("Generating a random number with simpler API");
         let ix = create_request_randomness_ix(RequestRandomnessParams {
             payer: ctx.accounts.payer.key(),
             oracle_queue: ctx.accounts.oracle_queue.key(),
             callback_program_id: crate::ID,
             callback_discriminator: ConsumeRandomness::DISCRIMINATOR.to_vec(),
             caller_seed: hash(&[client_seed]).to_bytes(),
+            accounts_metas: Some(vec![SerializableAccountMeta {
+                pubkey: pubkey!("Fx9JhvMsnJSuDZDKg3dM9wLpznyK7hfY2BP5jwiFbj7q"),
+                is_signer: false,
+                is_writable: true,
+            }]),
             ..Default::default()
         });
         ctx.accounts
@@ -102,6 +108,10 @@ pub mod use_randomness {
             random_u8_with_range(&randomness, 1, 6)
         );
         msg!("Consuming random bool: {:?}", random_bool(&randomness));
+        if !ctx.remaining_accounts.is_empty() {
+            msg!("First remaining account: {:?}", ctx.remaining_accounts.first());
+            assert!(ctx.remaining_accounts.first().unwrap().is_writable);
+        }
         Ok(())
     }
 }

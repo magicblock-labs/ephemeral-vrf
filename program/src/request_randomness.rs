@@ -108,10 +108,15 @@ pub fn process_request_randomness(
         };
 
         // Append the item to the queue (writes discriminator, metas, args into the variable region)
+        let metas = args
+            .callback_accounts_metas
+            .iter()
+            .map(|ca| (*ca).into())
+            .collect::<Vec<CompactAccountMeta>>();
         let _logical_index = queue_acc.add_item(
             &base_item,
             &args.callback_discriminator,
-            &args.callback_accounts_metas,
+            &metas,
             &args.callback_args,
         )?;
     }
