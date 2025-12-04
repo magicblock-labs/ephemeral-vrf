@@ -48,17 +48,15 @@ impl QueueItem {
         &acc[start..end]
     }
 
-    pub fn account_metas<'a>(&self, acc: &'a [u8]) -> &'a [SerializableAccountMeta] {
+    pub fn account_metas<'a>(&self, acc: &'a [u8]) -> &'a [CompactAccountMeta] {
         let start = self.metas_offset as usize;
         let count = self.metas_len as usize;
-        let byte_len = count * size_of::<SerializableAccountMeta>();
+        let byte_len = count * size_of::<CompactAccountMeta>();
         let end = start + byte_len;
 
         let bytes = &acc[start..end];
 
-        unsafe {
-            core::slice::from_raw_parts(bytes.as_ptr() as *const SerializableAccountMeta, count)
-        }
+        unsafe { core::slice::from_raw_parts(bytes.as_ptr() as *const CompactAccountMeta, count) }
     }
 
     pub fn callback_args<'a>(&self, acc: &'a [u8]) -> &'a [u8] {
@@ -73,15 +71,29 @@ impl QueueItem {
 
 /// Serializable meta, Borsh compatible and Pod/Zeroable for zero copy.
 #[repr(C)]
-#[derive(
-    Clone, Copy, Debug, Default, Zeroable, Pod, PartialEq, BorshDeserialize, BorshSerialize,
-)]
-pub struct SerializableAccountMeta {
+#[derive(Clone, Copy, Default, Zeroable, Pod, PartialEq)]
+pub struct CompactAccountMeta {
     pub pubkey: [u8; 32],
     pub is_writable: u8,
 }
 
-impl SerializableAccountMeta {
+#[derive(Clone, Copy, Debug, Default, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct SerializableAccountMeta {
+    pub pubkey: [u8; 32],
+    pub is_signer: bool,
+    pub is_writable: bool,
+}
+
+impl From<SerializableAccountMeta> for CompactAccountMeta {
+    fn from(val: SerializableAccountMeta) -> Self {
+        CompactAccountMeta {
+            pubkey: val.pubkey,
+            is_writable: val.is_writable as u8,
+        }
+    }
+}
+
+impl CompactAccountMeta {
     pub fn to_account_meta(&self) -> AccountMeta {
         let pubkey = Pubkey::new_from_array(self.pubkey);
         let is_signer = false;
@@ -174,7 +186,7 @@ impl<'a> QueueAccount<'a> {
         &mut self,
         base_item: &QueueItem,
         discriminator: &[u8],
-        metas: &[SerializableAccountMeta],
+        metas: &[CompactAccountMeta],
         args: &[u8],
     ) -> Result<usize, ProgramError> {
         // Enforce upper bounds on metas and args lengths to prevent oversized QueueItems
@@ -254,7 +266,7 @@ impl<'a> QueueAccount<'a> {
                 out.push(item);
             }
 
-            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<CompactAccountMeta>();
             let next = Self::align_up(
                 cursor
                     + size_of::<QueueItem>()
@@ -293,7 +305,7 @@ impl<'a> QueueAccount<'a> {
                 current += 1;
             }
 
-            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<CompactAccountMeta>();
             let next = Self::align_up(
                 cursor
                     + size_of::<QueueItem>()
@@ -334,7 +346,7 @@ impl<'a> QueueAccount<'a> {
                 current += 1;
             }
 
-            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<CompactAccountMeta>();
             let next = Self::align_up(
                 cursor
                     + size_of::<QueueItem>()
@@ -371,7 +383,7 @@ impl<'a> QueueAccount<'a> {
                 current += 1;
             }
 
-            let metas_bytes = (item.metas_len as usize) * size_of::<SerializableAccountMeta>();
+            let metas_bytes = (item.metas_len as usize) * size_of::<CompactAccountMeta>();
             let next = Self::align_up(
                 cursor
                     + size_of::<QueueItem>()
