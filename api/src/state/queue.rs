@@ -258,15 +258,12 @@ impl<'a> QueueAccount<'a> {
 
         // Ensure we have enough room in the account before mutating any state
         if aligned.saturating_add(total_needed) > self.acc.len() {
-            let aligned_after = Self::align_up(self.header.cursor as usize, items_align);
-            if aligned_after.saturating_add(total_needed) > self.acc.len() {
-                msg!("Error in adding item to queue: account too small");
-                msg!("Item size: {}", item_size);
-                msg!("Total needed: {}", total_needed);
-                msg!("Account len: {}", self.acc.len());
-                msg!("Queue len: {}", self.len());
-                return Err(ProgramError::AccountDataTooSmall);
-            }
+            msg!("Error in adding item to queue: account too small");
+            msg!("Item size: {}", item_size);
+            msg!("Total needed: {}", total_needed);
+            msg!("Account len: {}", self.acc.len());
+            msg!("Queue len: {}", self.len());
+            return Err(ProgramError::AccountDataTooSmall);
         }
 
         // Ensure items area starts at aligned offset; cursor may have been advanced already
