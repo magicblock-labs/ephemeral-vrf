@@ -7,6 +7,7 @@ use solana_client::{
 use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 
 use helius_laserstream::{
     grpc::{
@@ -32,6 +33,8 @@ pub type RequestId = [u8; 32];
 pub type QueueKey = String;
 pub type InflightById = HashMap<RequestId, u64>;
 pub type InflightRequestsMap = HashMap<QueueKey, InflightById>;
+pub type ActiveTasksById = HashMap<RequestId, JoinHandle<()>>;
+pub type ActiveTasksMap = HashMap<QueueKey, ActiveTasksById>;
 
 pub struct OracleClient {
     pub keypair: Keypair,
@@ -48,6 +51,8 @@ pub struct OracleClient {
     pub response_counts: Arc<RwLock<HashMap<String, u64>>>,
     // In-flight requests per queue: request_id -> enqueue slot
     pub inflight_requests: Arc<RwLock<InflightRequestsMap>>,
+    // Active task handles per queue: request_id -> JoinHandle
+    pub active_tasks: Arc<RwLock<ActiveTasksMap>>,
     // Whether to skip preflight when sending transactions
     pub skip_preflight: bool,
 }
@@ -80,6 +85,7 @@ impl OracleClient {
             avg_response_slots: Arc::new(RwLock::new(HashMap::new())),
             response_counts: Arc::new(RwLock::new(HashMap::new())),
             inflight_requests: Arc::new(RwLock::new(HashMap::new())),
+            active_tasks: Arc::new(RwLock::new(HashMap::new())),
             skip_preflight,
         }
     }
