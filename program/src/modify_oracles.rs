@@ -4,6 +4,7 @@ use ephemeral_vrf_api::prelude::EphemeralVrfError::{
 };
 use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::verify::is_on_curve;
+use solana_program::msg;
 use steel::*;
 
 /// Process the modification of oracles (add or remove)
@@ -90,10 +91,10 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
         oracle_data.registration_slot = Clock::get()?.slot;
     } else if args.operation == 1 {
         // Ensure oracle has no open queues before removal
-        if let Ok(oracle_data) = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID) {
-            if oracle_data.open_queue != 0 {
-                return Err(QueueNotEmpty.into());
-            }
+        let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+        if oracle_data.open_queue != 0 {
+            msg!("Oracle has {} open queues", oracle_data.open_queue);
+            return Err(QueueNotEmpty.into());
         }
         oracles.oracles.retain(|oracle| oracle.ne(&args.identity));
         close_account(oracle_data_info, signer_info)?;
