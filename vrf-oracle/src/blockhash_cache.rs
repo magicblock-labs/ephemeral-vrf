@@ -15,7 +15,6 @@ struct CacheData {
     blockhash: Hash,
     slot: u64,
     timestamp: Instant,
-    counter: u8,
 }
 
 impl BlockhashCache {
@@ -33,7 +32,6 @@ impl BlockhashCache {
             blockhash: initial_blockhash,
             slot: initial_slot,
             timestamp: Instant::now(),
-            counter: 0,
         }));
 
         let cache = Self { inner, client };
@@ -52,7 +50,7 @@ impl BlockhashCache {
 
                 let should_refresh = {
                     let cache = inner.read().await;
-                    cache.counter >= 10 || cache.timestamp.elapsed() > Duration::from_secs(60)
+                    cache.timestamp.elapsed() > Duration::from_secs(60)
                 };
 
                 if should_refresh {
@@ -67,7 +65,6 @@ impl BlockhashCache {
                         cache.blockhash = new_blockhash.0;
                         cache.slot = new_slot;
                         cache.timestamp = Instant::now();
-                        cache.counter = 0;
                     }
                 }
             }
@@ -76,14 +73,12 @@ impl BlockhashCache {
 
     #[allow(dead_code)]
     pub async fn get_blockhash(&self) -> Hash {
-        let mut cache = self.inner.write().await;
-        cache.counter = (cache.counter + 1) % 11;
+        let cache = self.inner.read().await;
         cache.blockhash
     }
 
     pub async fn get_blockhash_and_slot(&self) -> (Hash, u64) {
-        let mut cache = self.inner.write().await;
-        cache.counter = (cache.counter + 1) % 11;
+        let cache = self.inner.read().await;
         (cache.blockhash, cache.slot)
     }
 

@@ -185,6 +185,46 @@ impl<'a> QueueAccount<'a> {
         dst.copy_from_slice(src);
     }
 
+    /// Recompute the end of the last used item and shrink the cursor to it,
+    /// effectively removing all trailing holes. If no items are used, reset to items_start().
+    fn trim_trailing_holes(&mut self) {
+        let mut cursor = Self::items_start();
+        let end = core::cmp::min(self.acc.len(), self.header.cursor as usize);
+        let align = core::mem::align_of::<QueueItem>();
+
+        // Default to empty queue start; if we see used items we’ll update this
+        let mut last_used_end_aligned = Self::items_start();
+
+        while cursor + size_of::<QueueItem>() <= end {
+            let bytes = &self.acc[cursor..cursor + size_of::<QueueItem>()];
+            let item = Self::read_item_unaligned(bytes);
+
+            let metas_bytes = (item.metas_len as usize) * size_of::<CompactAccountMeta>();
+            let item_end = cursor
+                + size_of::<QueueItem>()
+                + (item.callback_discriminator_len as usize)
+                + metas_bytes
+                + (item.args_len as usize);
+            let next = Self::align_up(item_end, align);
+
+            if item.used == 1 {
+                last_used_end_aligned = next;
+            }
+
+            // Corruption guard
+            if next <= cursor {
+                break;
+            }
+            cursor = next;
+        }
+
+        // If nothing was used, this becomes items_start(); otherwise end of last used.
+        let new_cursor = last_used_end_aligned;
+        if (new_cursor as u32) < self.header.cursor {
+            self.header.cursor = new_cursor as u32;
+        }
+    }
+
     /// Append a new item to the queue.
     pub fn add_item(
         &mut self,
@@ -198,41 +238,53 @@ impl<'a> QueueAccount<'a> {
             return Err(ProgramError::from(EphemeralVrfError::ArgumentSizeTooLarge));
         }
 
-        // Ensure items area starts at aligned offset; cursor may have been advanced already,
-        // so align the cursor up to the QueueItem alignment.
+        self.trim_trailing_holes();
+
+        // Pre-compute sizes for a transactional capacity check to avoid partial writes
         let items_align = core::mem::align_of::<QueueItem>();
+        let aligned = Self::align_up(self.header.cursor as usize, items_align);
+        let item_size = size_of::<QueueItem>();
+        let disc_len_usize = discriminator.len();
+        let metas_bytes_len = size_of_val(metas);
+        let args_len_usize = args.len();
+
+        // Total bytes needed for this append (no trailing alignment; we align at the start)
+        let total_needed = item_size
+            .saturating_add(disc_len_usize)
+            .saturating_add(metas_bytes_len)
+            .saturating_add(args_len_usize);
+
+        // Ensure we have enough room in the account before mutating any state
+        if aligned.saturating_add(total_needed) > self.acc.len() {
+            return Err(ProgramError::AccountDataTooSmall);
+        }
+
+        // Ensure items area starts at aligned offset; cursor may have been advanced already
         let aligned = Self::align_up(self.header.cursor as usize, items_align);
         if aligned != self.header.cursor as usize {
             let start = self.header.cursor as usize;
             let end = aligned;
-            if end > self.acc.len() {
-                return Err(ProgramError::AccountDataTooSmall);
-            }
+            // Safe due to preflight check above
             self.acc[start..end].fill(0);
             self.header.cursor = end as u32;
         }
 
         // Reserve space for the item so items are contiguous
         let item_pos = self.header.cursor as usize;
-        let item_size = size_of::<QueueItem>();
-        if item_pos + item_size > self.acc.len() {
-            return Err(ProgramError::AccountDataTooSmall);
-        }
-        // Advance cursor past the reserved item bytes (will fill after writing variable data)
+        // Safe due to preflight check above
         self.header.cursor = (item_pos + item_size) as u32;
 
         // Write discriminator/metas/args into variable region (after the reserved item slot)
         let disc_off = self.write_bytes(discriminator)?;
-        let disc_len = discriminator.len() as u16;
+        let disc_len = disc_len_usize as u16;
 
-        let metas_bytes_len = size_of_val(metas);
         let metas_bytes =
             unsafe { core::slice::from_raw_parts(metas.as_ptr() as *const u8, metas_bytes_len) };
         let metas_off = self.write_bytes(metas_bytes)?;
         let metas_len = metas.len() as u16;
 
         let args_off = self.write_bytes(args)?;
-        let args_len = args.len() as u16;
+        let args_len = args_len_usize as u16;
 
         // Build final item with filled offsets
         let mut item = *base_item;
@@ -341,10 +393,27 @@ impl<'a> QueueAccount<'a> {
 
             if item.used == 1 {
                 if current == index {
+                    // Compute if this item was at the physical tail
+                    let metas_bytes = (item.metas_len as usize) * size_of::<CompactAccountMeta>();
+                    let item_end = cursor
+                        + size_of::<QueueItem>()
+                        + (item.callback_discriminator_len as usize)
+                        + metas_bytes
+                        + (item.args_len as usize);
+                    let next = Self::align_up(item_end, align);
+                    let was_tail = next == self.header.cursor as usize;
+
+                    // Logically remove
                     item.used = 0;
                     self.header.item_count = self.header.item_count.saturating_sub(1);
                     // Write back modified item using unaligned write
                     Self::write_item_unaligned(bytes, &item);
+
+                    // If we removed the tail, shrink cursor to eliminate trailing holes
+                    if was_tail {
+                        self.trim_trailing_holes();
+                    }
+
                     return Ok(item);
                 }
                 current += 1;

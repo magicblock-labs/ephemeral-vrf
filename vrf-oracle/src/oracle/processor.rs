@@ -11,7 +11,7 @@ use ephemeral_vrf_api::{
 };
 use futures_util::future::join_all;
 use futures_util::FutureExt;
-use log::{error, info, warn};
+use log::{error, info, trace, warn};
 use solana_account_decoder::UiAccountEncoding;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
@@ -101,10 +101,12 @@ pub async fn process_oracle_queue(
     notification_slot: Option<u64>,
 ) {
     if oracle_queue_pda(&oracle_client.keypair.pubkey(), oracle_queue.index).0 == *queue {
-        info!(
-            "Processing queue: {}, with len: {}",
-            queue, oracle_queue.item_count
-        );
+        if oracle_queue.item_count > 0 {
+            info!(
+                "Processing queue: {}, with len: {}",
+                queue, oracle_queue.item_count
+            );
+        }
 
         // Update web-exposed queue size map
         {
@@ -135,19 +137,22 @@ pub async fn process_oracle_queue(
         let queue_key = queue.to_string();
         {
             let mut inflight_all = oracle_client.inflight_requests.write().await;
+            let mut tasks_all = oracle_client.active_tasks.write().await;
             let inflight_for_queue = inflight_all.entry(queue_key.clone()).or_default();
+            let tasks_for_queue = tasks_all.entry(queue_key.clone()).or_default();
 
-            // Insert any new requests observed in the queue with their enqueue slot
-            for (id, enqueue_slot) in current_slots_by_id.iter() {
-                inflight_for_queue.entry(*id).or_insert(*enqueue_slot);
-            }
-
-            // Identify requests that were in-flight but are no longer present -> responded
+            // Identify requests that were in-flight but are no longer present -> responded or purged
             let previously_tracked: Vec<[u8; 32]> = inflight_for_queue.keys().cloned().collect();
             for tracked_id in previously_tracked {
                 if !current_ids.contains(&tracked_id) {
-                    if let Some(response_slot_hint) = notification_slot {
-                        if let Some(enqueue_slot) = inflight_for_queue.remove(&tracked_id) {
+                    // Cancel any running task for this id
+                    if let Some(handle) = tasks_for_queue.remove(&tracked_id) {
+                        handle.abort();
+                    }
+
+                    // Remove from inflight and, if we have a response slot hint, update latency stats
+                    if let Some(enqueue_slot) = inflight_for_queue.remove(&tracked_id) {
+                        if let Some(response_slot_hint) = notification_slot {
                             let latency = response_slot_hint.saturating_sub(enqueue_slot) as f64;
 
                             // Update running average and count for this queue
@@ -172,7 +177,6 @@ pub async fn process_oracle_queue(
         let queue_meta = Arc::new(*oracle_queue);
         let items: Vec<QueueItem> = queue_account.iter_items().collect();
 
-        let mut tasks = Vec::new();
         for item in items.into_iter() {
             let oracle_client = Arc::clone(oracle_client);
             let rpc_client = Arc::clone(rpc_client);
@@ -181,14 +185,37 @@ pub async fn process_oracle_queue(
             let oracle_queue = Arc::clone(&queue_meta);
             let account_bytes_task = Arc::clone(&account_bytes);
             let input_seed = item.id;
+            let queue_key_spawn = queue_key.clone();
+            // Separate clones to satisfy borrow checker across awaits
+            let oracle_client_for_proc = Arc::clone(&oracle_client);
+            let oracle_client_for_cleanup = Arc::clone(&oracle_client);
+
+            // Only spawn a task if this request is not already in-flight for this queue
+            let should_spawn = {
+                let mut inflight_all = oracle_client.inflight_requests.write().await;
+                let inflight_for_queue = inflight_all.entry(queue_key_spawn.clone()).or_default();
+                if let std::collections::hash_map::Entry::Vacant(e) =
+                    inflight_for_queue.entry(item.id)
+                {
+                    e.insert(item.slot);
+                    true
+                } else {
+                    false
+                }
+            };
+
+            if !should_spawn {
+                continue;
+            }
 
             let handle = tokio::spawn(async move {
                 let mut attempts = 0;
+                let mut confirmed_success = false;
 
-                while attempts < 10 {
+                while attempts < 100 {
                     match ProcessableItem(item)
                         .process_item(
-                            &oracle_client,
+                            &oracle_client_for_proc,
                             &rpc_client,
                             &blockhash_cache,
                             &input_seed,
@@ -199,52 +226,87 @@ pub async fn process_oracle_queue(
                         .await
                     {
                         Ok(signature) => {
-                            info!("Transaction signature: {signature}");
-
+                            trace!(
+                                "Transaction: {}, for id {}",
+                                signature,
+                                Pubkey::new_from_array(item.id)
+                            );
                             let sig = match signature.parse::<solana_sdk::signature::Signature>() {
                                 Ok(sig) => sig,
                                 Err(_) => {
-                                    warn!("Failed to parse signature");
-                                    attempts += 1;
-                                    sleep(Duration::from_millis(20 * attempts)).await;
                                     continue;
                                 }
                             };
 
-                            let success = match rpc_client.confirm_transaction(&sig).await {
-                                Ok(success) => success,
-                                Err(_) => {
-                                    warn!("Failed to confirm transaction");
-                                    attempts += 1;
-                                    sleep(Duration::from_millis(20 * attempts)).await;
-                                    continue;
-                                }
-                            };
+                            let result = rpc_client
+                                .confirm_transaction_with_commitment(
+                                    &sig,
+                                    CommitmentConfig::processed(),
+                                )
+                                .await;
 
-                            if success {
-                                info!("Transaction successfully confirmed");
-                                break;
-                            } else {
-                                warn!("Transaction failed");
-                                attempts += 1;
-                                sleep(Duration::from_millis(20 * attempts)).await;
-                                blockhash_cache.refresh_blockhash().await;
+                            match result {
+                                Ok(success) => {
+                                    if success.value {
+                                        info!(
+                                            "Transaction successfully confirmed: {}, for id: {}",
+                                            signature,
+                                            Pubkey::new_from_array(item.id)
+                                        );
+                                        confirmed_success = true;
+                                        break;
+                                    } else {
+                                        attempts += 1;
+                                        blockhash_cache.refresh_blockhash().await;
+                                        if attempts > 20 {
+                                            let delay_ms = 10 * (attempts - 20);
+                                            sleep(Duration::from_millis(delay_ms)).await;
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    warn!("Transaction {sig} failed to confirm: {err}");
+                                    attempts += 3;
+                                    blockhash_cache.refresh_blockhash().await;
+                                }
                             }
                         }
-                        Err(e) => {
-                            error!("Failed to send transaction: {e:?}");
-                            attempts += 1;
-                            sleep(Duration::from_millis(20 * attempts)).await;
+                        Err(_) => {
+                            // Response may be in the same slot, we retry with linear backoff
                             blockhash_cache.refresh_blockhash().await;
+                            if attempts > 5 {
+                                let delay_ms = 20 * (attempts - 5);
+                                sleep(Duration::from_millis(delay_ms)).await;
+                            }
+                            attempts += 1;
                         }
+                    }
+                }
+
+                // Task finished. Remove from active_tasks. If not confirmed, also clear inflight to allow retry.
+                {
+                    let mut tasks_all = oracle_client_for_cleanup.active_tasks.write().await;
+                    if let Some(tasks_for_queue) = tasks_all.get_mut(&queue_key_spawn) {
+                        tasks_for_queue.remove(&item.id);
+                    }
+                }
+
+                if !confirmed_success {
+                    let mut inflight_all =
+                        oracle_client_for_cleanup.inflight_requests.write().await;
+                    if let Some(inflight_for_queue) = inflight_all.get_mut(&queue_key_spawn) {
+                        inflight_for_queue.remove(&item.id);
                     }
                 }
             });
 
-            tasks.push(handle);
+            // Track the task handle for potential cancellation if the item disappears from the queue
+            {
+                let mut tasks_all = oracle_client.active_tasks.write().await;
+                let tasks_for_queue = tasks_all.entry(queue_key.clone()).or_default();
+                tasks_for_queue.insert(item.id, handle);
+            }
         }
-
-        join_all(tasks).await;
     }
 }
 
