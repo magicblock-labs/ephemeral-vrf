@@ -2,7 +2,6 @@ use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
 use borsh::{BorshDeserialize, BorshSerialize};
 use core::mem::{size_of, size_of_val};
 use core::ptr;
-use solana_program::msg;
 use steel::{AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
 /// Header of the queue account (fixed size, lives at the start of the account
@@ -161,7 +160,6 @@ impl<'a> QueueAccount<'a> {
         let end = start + bytes.len();
 
         if end > self.acc.len() {
-            msg!("Error in writing bytes to the queue");
             return Err(ProgramError::AccountDataTooSmall);
         }
 
@@ -258,11 +256,6 @@ impl<'a> QueueAccount<'a> {
 
         // Ensure we have enough room in the account before mutating any state
         if aligned.saturating_add(total_needed) > self.acc.len() {
-            msg!("Error in adding item to queue: account too small");
-            msg!("Item size: {}", item_size);
-            msg!("Total needed: {}", total_needed);
-            msg!("Account len: {}", self.acc.len());
-            msg!("Queue len: {}", self.len());
             return Err(ProgramError::AccountDataTooSmall);
         }
 
