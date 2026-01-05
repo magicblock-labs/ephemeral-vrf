@@ -3,6 +3,7 @@ use solana_program::hash::hashv;
 use solana_program::program::invoke;
 use solana_program::system_instruction;
 use solana_program::sysvar::slot_hashes;
+use solana_program::msg;
 use steel::*;
 
 /// Process a request for randomness
@@ -85,6 +86,9 @@ pub fn process_request_randomness(
             &time.to_le_bytes(),
             &idx.to_le_bytes(),
         ]);
+
+        // Log to simplify gathering all the information needed to recreate the combined_hash.
+        msg!("Idx: {}", idx);
 
         // Optionally validate discriminator length to 8 bytes max (borsh Vec allows larger, but callbacks typically use 8)
         if args.callback_discriminator.len() > 8 {
