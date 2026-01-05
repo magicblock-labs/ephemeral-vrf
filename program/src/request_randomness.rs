@@ -1,9 +1,9 @@
 use ephemeral_vrf_api::prelude::*;
 use solana_program::hash::hashv;
+use solana_program::msg;
 use solana_program::program::invoke;
 use solana_program::system_instruction;
 use solana_program::sysvar::slot_hashes;
-use solana_program::msg;
 use steel::*;
 
 /// Process a request for randomness
