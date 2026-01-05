@@ -12,6 +12,11 @@ on:
         description: 'The release version'
         required: true
         default: 'v0.1.0'
+      dry_run:
+        description: 'Run in dry-run mode (no actual publishing)'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   publish-binaries:
@@ -108,6 +113,10 @@ jobs:
       - name: Unset DRY_RUN for releases
         if: github.event_name == 'release' && github.event.action == 'published'
         run: echo "DRY_RUN=false" >> $GITHUB_ENV
+
+      - name: Set DRY_RUN from workflow_dispatch input
+        if: github.event_name == 'workflow_dispatch'
+        run: echo "DRY_RUN=${{ github.event.inputs.dry_run }}" >> $GITHUB_ENV
 
       - name: Set release version
         shell: bash
