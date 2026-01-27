@@ -74,7 +74,10 @@ pub fn initialize_oracle_queue(
     index: u8,
     bytes_to_allocate: Option<u32>,
 ) -> Vec<Instruction> {
-    println!("Queue: {:?}", oracle_queue_pda(&identity, index).0.to_string());
+    println!(
+        "Queue: {:?}",
+        oracle_queue_pda(&identity, index).0.to_string()
+    );
     let target_size = bytes_to_allocate.unwrap_or(9500);
     let inits = target_size.div_ceil(10240);
     let mut ixs = Vec::with_capacity(inits as usize);

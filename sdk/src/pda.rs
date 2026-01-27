@@ -1,4 +1,6 @@
-use solana_program::pubkey::Pubkey;
+use solana_program::pubkey::Pubkey as SolanaPubkey;
+
+use crate::{consts, Pubkey};
 
 /// NOTE: Copy/Pasted from delegation-program/src/pda.rs (modify there if needed)
 #[macro_export]
@@ -72,33 +74,33 @@ macro_rules! ephemeral_balance_seeds_from_payer {
 }
 
 pub fn delegation_record_pda_from_delegated_account(delegated_account: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         delegation_record_seeds_from_delegated_account!(delegated_account),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
 
 pub fn delegation_metadata_pda_from_delegated_account(delegated_account: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         delegation_metadata_seeds_from_delegated_account!(delegated_account),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
 
 pub fn commit_state_pda_from_delegated_account(delegated_account: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         commit_state_seeds_from_delegated_account!(delegated_account),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
 
 pub fn commit_record_pda_from_delegated_account(delegated_account: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         commit_record_seeds_from_delegated_account!(delegated_account),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
@@ -107,7 +109,7 @@ pub fn delegate_buffer_pda_from_delegated_account_and_owner_program(
     delegated_account: &Pubkey,
     owner_program: &Pubkey,
 ) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         delegate_buffer_seeds_from_delegated_account!(delegated_account),
         owner_program,
     )
@@ -115,37 +117,37 @@ pub fn delegate_buffer_pda_from_delegated_account_and_owner_program(
 }
 
 pub fn undelegate_buffer_pda_from_delegated_account(delegated_account: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         undelegate_buffer_seeds_from_delegated_account!(delegated_account),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
 
 pub fn fees_vault_pda() -> Pubkey {
-    Pubkey::find_program_address(fees_vault_seeds!(), &crate::id()).0
+    SolanaPubkey::find_program_address(fees_vault_seeds!(), &consts::VRF_PROGRAM_ID).0
 }
 
 pub fn validator_fees_vault_pda_from_validator(validator: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         validator_fees_vault_seeds_from_validator!(validator),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
 
 pub fn program_config_from_program_id(program_id: &Pubkey) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         program_config_seeds_from_program_id!(program_id),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
 
 pub fn ephemeral_balance_pda_from_payer(payer: &Pubkey, index: u8) -> Pubkey {
-    Pubkey::find_program_address(
+    SolanaPubkey::find_program_address(
         ephemeral_balance_seeds_from_payer!(payer, index),
-        &crate::id(),
+        &consts::VRF_PROGRAM_ID,
     )
     .0
 }
