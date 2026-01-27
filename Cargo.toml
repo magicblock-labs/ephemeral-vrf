@@ -3,7 +3,7 @@ resolver = "2"
 members = ["api", "program", "sdk", "src", "vrf", "vrf-cli", "vrf-oracle"]
 
 [workspace.package]
-version = "0.2.1"
+version = "0.2.3"
 edition = "2021"
 license = "Business Source License 1.1"
 authors = ["MagicBlock Labs <dev@magicblock.xyz>"]
@@ -26,9 +26,9 @@ crossbeam-channel = "0.5.15"
 curve25519-dalek = { version = "4.1.3", default-features = false }
 env_logger = "0.11.7"
 ephemeral-rollups-sdk = "0.2.4"
-ephemeral-vrf = { path = "./vrf", version = "0.2.1" }
-ephemeral-vrf-api = { path = "./api", version = "0.2.1" }
-ephemeral-vrf-sdk-vrf-macro = { path = "sdk/vrf-macro", version = "0.2.1" }
+ephemeral-vrf = { path = "./vrf", version = "0.2.3" }
+ephemeral-vrf-api = { path = "./api", version = "0.2.3" }
+ephemeral-vrf-sdk-vrf-macro = { path = "sdk/vrf-macro", version = "0.2.3" }
 futures = "0.3.31"
 futures-core = "0.3.31"
 futures-util = "0.3.31"
