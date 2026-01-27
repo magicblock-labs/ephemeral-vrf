@@ -111,7 +111,7 @@ pub fn delegate_buffer_pda_from_delegated_account_and_owner_program(
 ) -> Pubkey {
     SolanaPubkey::find_program_address(
         delegate_buffer_seeds_from_delegated_account!(delegated_account),
-        &SolanaPubkey::from(*owner_program),
+        owner_program,
     )
     .0
 }
