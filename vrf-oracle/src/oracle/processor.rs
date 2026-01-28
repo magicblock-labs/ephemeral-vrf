@@ -361,7 +361,7 @@ impl ProcessableItem {
         };
 
         let budget = match self.0.priority_request {
-            1 => 200_000,
+            1 => 300_000,
             _ => 180_000,
         };
         let tx = Transaction::new_signed_with_payer(
