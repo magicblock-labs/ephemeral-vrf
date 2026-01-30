@@ -33,7 +33,7 @@ program = "../../../../target/deploy/ephemeral_vrf_program.so"
 upgradeable = false
 
 [[test.validator.account]]
-address = "GKE6d7iv8kCBrsxr78W3xVdjGLLLJnxsGiuzrsZCGEvb"
+address = "paywJiVATrVDLYLmowJqzG6MsaCt77L8WyTnBb2754t"
 filename = "tests/fixtures/oracles.json"
 
 [[test.validator.account]]
