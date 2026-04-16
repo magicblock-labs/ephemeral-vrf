@@ -339,7 +339,8 @@ impl ProcessableItem {
 
         // Check whether the request is expired
         let age = current_slot.saturating_sub(self.0.slot);
-        let ix = if age > QUEUE_TTL_SLOTS {
+        let is_purge = age > QUEUE_TTL_SLOTS;
+        let ix = if is_purge {
             // Build purge instruction for the queue index
             purge_expired_requests(oracle_client.keypair.pubkey(), queue_meta.index)
         } else {
@@ -360,9 +361,13 @@ impl ProcessableItem {
             ix
         };
 
-        let budget = match self.0.priority_request {
-            1 => 300_000,
-            _ => 180_000,
+        let budget = if is_purge {
+            1_000_000
+        } else {
+            match self.0.priority_request {
+                1 => 300_000,
+                _ => 180_000,
+            }
         };
         let tx = Transaction::new_signed_with_payer(
             &[
