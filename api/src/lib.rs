@@ -8,6 +8,7 @@ pub mod loaders;
 pub mod pda;
 pub mod sdk;
 pub mod state;
+pub mod steel;
 pub mod verify;
 
 pub mod prelude {
@@ -17,8 +18,9 @@ pub mod prelude {
     pub use crate::pda::*;
     pub use crate::sdk::*;
     pub use crate::state::*;
+    pub use crate::steel::*;
 }
 
-use steel::*;
+use crate::steel::*;
 
 declare_id!("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");

@@ -2,7 +2,7 @@ use serde_json::json;
 use solana_client::nonblocking;
 use solana_client::rpc_request::RpcRequest;
 use solana_client::rpc_response::{Response, RpcBlockhash};
-use solana_sdk::commitment_config::CommitmentConfig;
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
 use std::sync::Arc;
 use std::time::{Duration, Instant};

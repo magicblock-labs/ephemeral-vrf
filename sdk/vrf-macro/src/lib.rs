@@ -67,7 +67,7 @@ pub fn vrf(_attr: TokenStream, item: TokenStream) -> TokenStream {
     if !has_slot_hashes {
         new_fields.push(quote! {
             /// CHECK: Slot hashes sysvar
-            #[account(address = ::anchor_lang::solana_program::sysvar::slot_hashes::ID)]
+            #[account(address = ::ephemeral_vrf_sdk::compat::anchor_lang::solana_program::sysvar::slot_hashes::ID)]
             pub slot_hashes: AccountInfo<'info>,
         });
     }
@@ -85,9 +85,9 @@ pub fn vrf(_attr: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         impl<'info> #struct_name<'info> {
-            fn invoke_signed_vrf<'a>(&self, payer: &'a AccountInfo<'info>, ix: &anchor_lang::solana_program::instruction::Instruction) -> anchor_lang::solana_program::entrypoint::ProgramResult {
-                let bump = Pubkey::try_find_program_address(&[ephemeral_vrf_sdk::consts::IDENTITY], &crate::ID).ok_or(anchor_lang::prelude::ProgramError::InvalidSeeds)?;
-                anchor_lang::solana_program::program::invoke_signed(
+            fn invoke_signed_vrf<'a>(&self, payer: &'a AccountInfo<'info>, ix: &::ephemeral_vrf_sdk::compat::Instruction) -> ::ephemeral_vrf_sdk::compat::anchor_lang::solana_program::entrypoint::ProgramResult {
+                let bump = Pubkey::try_find_program_address(&[ephemeral_vrf_sdk::consts::IDENTITY], &crate::ID).ok_or(::ephemeral_vrf_sdk::compat::anchor_lang::prelude::ProgramError::InvalidSeeds)?;
+                ::ephemeral_vrf_sdk::compat::anchor_lang::solana_program::program::invoke_signed(
                     ix,
                     &[
                         payer.clone(),

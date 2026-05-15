@@ -1,5 +1,4 @@
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 
 /// Process the initialization of the EphemeralVrf program
 ///

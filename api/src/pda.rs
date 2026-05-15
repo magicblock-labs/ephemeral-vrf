@@ -1,7 +1,7 @@
+use crate::steel::*;
 use solana_program::program::invoke;
 use solana_program::rent::Rent;
-use solana_program::system_instruction;
-use steel::*;
+use solana_system_interface::instruction as system_instruction;
 
 /// Creates a new pda
 #[inline(always)]
@@ -22,7 +22,7 @@ pub fn create_pda<'a, 'info>(
     if target_account.lamports().eq(&0) {
         // If balance is zero, create account
         solana_program::program::invoke_signed(
-            &solana_program::system_instruction::create_account(
+            &system_instruction::create_account(
                 payer.key,
                 target_account.key,
                 rent.minimum_balance(space),
@@ -44,11 +44,7 @@ pub fn create_pda<'a, 'info>(
             .saturating_sub(target_account.lamports());
         if rent_exempt_balance.gt(&0) {
             solana_program::program::invoke(
-                &solana_program::system_instruction::transfer(
-                    payer.key,
-                    target_account.key,
-                    rent_exempt_balance,
-                ),
+                &system_instruction::transfer(payer.key, target_account.key, rent_exempt_balance),
                 &[
                     payer.as_ref().clone(),
                     target_account.as_ref().clone(),
@@ -58,7 +54,7 @@ pub fn create_pda<'a, 'info>(
         }
         // 2) allocate space for the account
         solana_program::program::invoke_signed(
-            &solana_program::system_instruction::allocate(target_account.key, space as u64),
+            &system_instruction::allocate(target_account.key, space as u64),
             &[
                 target_account.as_ref().clone(),
                 system_program.as_ref().clone(),
@@ -67,7 +63,7 @@ pub fn create_pda<'a, 'info>(
         )?;
         // 3) assign our program as the owner
         solana_program::program::invoke_signed(
-            &solana_program::system_instruction::assign(target_account.key, owner),
+            &system_instruction::assign(target_account.key, owner),
             &[
                 target_account.as_ref().clone(),
                 system_program.as_ref().clone(),
@@ -99,6 +95,6 @@ pub fn resize_pda<'a, 'info>(
         **payer.try_borrow_mut_lamports()? += abs_diff;
     }
 
-    pda.realloc(new_size, false)?;
+    pda.resize(new_size)?;
     Ok(())
 }

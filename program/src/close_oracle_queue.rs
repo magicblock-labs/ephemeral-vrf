@@ -1,5 +1,4 @@
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 
 /// Process the closing of an Oracle queue account
 ///

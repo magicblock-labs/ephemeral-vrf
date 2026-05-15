@@ -2,7 +2,6 @@ use ephemeral_vrf_api::loaders::is_empty_or_zeroed;
 use ephemeral_vrf_api::prelude::EphemeralVrfError::Unauthorized;
 use ephemeral_vrf_api::prelude::*;
 use solana_program::msg;
-use steel::*;
 const MAX_EXTRA_BYTES: usize = 10_240;
 
 /// Process the initialization of the Oracle queue

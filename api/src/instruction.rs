@@ -1,8 +1,8 @@
 use crate::prelude::SerializableAccountMeta;
+use crate::steel::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-use steel::*;
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, TryFromPrimitive)]

@@ -1,7 +1,7 @@
 use crate::prelude::{AccountDiscriminator, AccountWithDiscriminator};
+use crate::steel::*;
 use crate::{impl_to_bytes_with_discriminator_borsh, impl_try_from_bytes_with_discriminator_borsh};
 use borsh::{BorshDeserialize, BorshSerialize};
-use steel::*;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
 pub struct Oracles {

@@ -24,11 +24,13 @@ ephemeral-rollups-sdk.workspace = true
 solana-curve25519.workspace = true
 curve25519-dalek.workspace = true
 solana-program.workspace = true
-steel.workspace = true
+solana-system-interface.workspace = true
 
 [dev-dependencies]
 ephemeral-vrf = { workspace = true}
 solana-program-test = { workspace = true }
 solana-sdk = { workspace = true }
+solana-compute-budget-interface = { workspace = true }
+solana-sdk-ids = { workspace = true }
 base64 = {workspace = true}
 tokio = { workspace = true, features = ["full"] }

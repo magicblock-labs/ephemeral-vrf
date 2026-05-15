@@ -1,8 +1,8 @@
 use crate::prelude::{AccountDiscriminator, EphemeralVrfError};
+use crate::steel::{AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 use borsh::{BorshDeserialize, BorshSerialize};
 use core::mem::{size_of, size_of_val};
 use core::ptr;
-use steel::{AccountMeta, Pod, ProgramError, Pubkey, Zeroable};
 
 /// Header of the queue account (fixed size, lives at the start of the account
 /// after the 8-byte discriminator).

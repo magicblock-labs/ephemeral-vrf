@@ -1,6 +1,5 @@
 use ephemeral_rollups_sdk::cpi::undelegate_account;
-use ephemeral_vrf_api::prelude::PdaSeeds;
-use steel::*;
+use ephemeral_vrf_api::prelude::*;
 
 /// Process the undelegation of an Oracle queue from the delegation program
 ///
