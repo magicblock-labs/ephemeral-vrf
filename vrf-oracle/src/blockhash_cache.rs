@@ -1,4 +1,7 @@
+use serde_json::json;
 use solana_client::nonblocking;
+use solana_client::rpc_request::RpcRequest;
+use solana_client::rpc_response::{Response, RpcBlockhash};
 use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
 use std::sync::Arc;
@@ -19,18 +22,10 @@ struct CacheData {
 
 impl BlockhashCache {
     pub async fn new(client: Arc<nonblocking::rpc_client::RpcClient>) -> Self {
-        let initial_blockhash = client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-            .await
-            .unwrap()
-            .0;
-        let initial_slot = client
-            .get_slot_with_commitment(CommitmentConfig::processed())
-            .await
-            .unwrap();
+        let (blockhash, slot) = Self::fetch_blockhash_and_slot(&client).await.unwrap();
         let inner = Arc::new(RwLock::new(CacheData {
-            blockhash: initial_blockhash,
-            slot: initial_slot,
+            blockhash,
+            slot,
             timestamp: Instant::now(),
         }));
 
@@ -54,16 +49,10 @@ impl BlockhashCache {
                 };
 
                 if should_refresh {
-                    let latest = client
-                        .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-                        .await;
-                    let slot = client
-                        .get_slot_with_commitment(CommitmentConfig::processed())
-                        .await;
-                    if let (Ok(new_blockhash), Ok(new_slot)) = (latest, slot) {
+                    if let Ok((blockhash, slot)) = Self::fetch_blockhash_and_slot(&client).await {
                         let mut cache = inner.write().await;
-                        cache.blockhash = new_blockhash.0;
-                        cache.slot = new_slot;
+                        cache.blockhash = blockhash;
+                        cache.slot = slot;
                         cache.timestamp = Instant::now();
                     }
                 }
@@ -83,14 +72,24 @@ impl BlockhashCache {
     }
 
     pub async fn refresh_blockhash(&self) {
-        let initial_blockhash = self
-            .client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
-            .await;
-        if let Ok(new_blockhash) = initial_blockhash {
+        if let Ok((blockhash, slot)) = Self::fetch_blockhash_and_slot(&self.client).await {
             let mut cache = self.inner.write().await;
-            cache.blockhash = new_blockhash.0;
+            cache.blockhash = blockhash;
+            cache.slot = slot;
             cache.timestamp = Instant::now();
         }
+    }
+
+    async fn fetch_blockhash_and_slot(
+        client: &nonblocking::rpc_client::RpcClient,
+    ) -> anyhow::Result<(Hash, u64)> {
+        let resp: Response<RpcBlockhash> = client
+            .send(
+                RpcRequest::GetLatestBlockhash,
+                json!([CommitmentConfig::processed()]),
+            )
+            .await?;
+        let blockhash = resp.value.blockhash.parse()?;
+        Ok((blockhash, resp.context.slot))
     }
 }
