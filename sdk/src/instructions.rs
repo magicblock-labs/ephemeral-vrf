@@ -28,10 +28,7 @@ pub fn create_request_randomness_ix(params: RequestRandomnessParams) -> compat::
             compat::latest::AccountMeta::new_readonly(program_identity, true),
             compat::latest::AccountMeta::new(oracle_queue, false),
             compat::latest::AccountMeta::new_readonly(compat::latest::system_program::ID, false),
-            compat::latest::AccountMeta::new_readonly(
-                solana_program::sysvar::slot_hashes::ID,
-                false,
-            ),
+            compat::latest::AccountMeta::new_readonly(compat::latest::slot_hashes::ID, false),
         ],
         data: RequestRandomness {
             caller_seed: params.caller_seed,

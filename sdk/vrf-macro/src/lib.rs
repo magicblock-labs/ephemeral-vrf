@@ -6,6 +6,7 @@ use syn::{parse_macro_input, ItemStruct};
 pub fn vrf(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
 
+    let unchecked_account = generated_unchecked_account_type();
     let struct_name = &input.ident;
     let fields = &input.fields;
     let original_attrs = &input.attrs;
@@ -56,7 +57,7 @@ pub fn vrf(_attr: TokenStream, item: TokenStream) -> TokenStream {
         new_fields.push(quote! {
             /// CHECK: Used to verify the identity of the program
             #[account(seeds = [b"identity"], bump)]
-            pub program_identity: AccountInfo<'info>,
+            pub program_identity: #unchecked_account,
         });
     }
     if !has_vrf_program {
@@ -67,8 +68,8 @@ pub fn vrf(_attr: TokenStream, item: TokenStream) -> TokenStream {
     if !has_slot_hashes {
         new_fields.push(quote! {
             /// CHECK: Slot hashes sysvar
-            #[account(address = ::ephemeral_vrf_sdk::compat::anchor_lang::solana_program::sysvar::slot_hashes::ID)]
-            pub slot_hashes: AccountInfo<'info>,
+            #[account(address = ::ephemeral_vrf_sdk::compat::slot_hashes::ID)]
+            pub slot_hashes: #unchecked_account,
         });
     }
     if !has_system_program {
@@ -102,4 +103,12 @@ pub fn vrf(_attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(expanded)
+}
+
+fn generated_unchecked_account_type() -> proc_macro2::TokenStream {
+    if cfg!(feature = "backward-compat") {
+        quote! { AccountInfo<'info> }
+    } else {
+        quote! { UncheckedAccount<'info> }
+    }
 }

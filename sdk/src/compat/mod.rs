@@ -20,6 +20,11 @@ mod backward_compat {
 
     #[cfg(feature = "anchor-compat")]
     pub use anchor_lang_compat as anchor_lang;
+
+    pub mod slot_hashes {
+        pub const ID: super::Pubkey =
+            solana_program_compat::pubkey!("SysvarS1otHashes111111111111111111111111111");
+    }
 }
 
 pub(crate) mod latest {
@@ -33,6 +38,11 @@ pub(crate) mod latest {
 
     #[cfg(feature = "anchor-modern")]
     pub use anchor_lang_current as anchor_lang;
+
+    pub mod slot_hashes {
+        pub const ID: super::Pubkey =
+            solana_program::pubkey!("SysvarS1otHashes111111111111111111111111111");
+    }
 }
 
 #[cfg(feature = "backward-compat")]
