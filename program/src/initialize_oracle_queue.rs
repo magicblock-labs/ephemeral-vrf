@@ -58,12 +58,15 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     )?;
     is_empty_or_zeroed(oracle_queue_info)?;
 
-    let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+    let oracle_registration_slot = {
+        let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+        oracle_data.registration_slot
+    };
 
     // Check slot timing
     let current_slot = Clock::get()?.slot;
 
-    let slots_since_registration = current_slot.saturating_sub(oracle_data.registration_slot);
+    let slots_since_registration = current_slot.saturating_sub(oracle_registration_slot);
 
     if slots_since_registration < 200 {
         log(format!(
@@ -132,7 +135,7 @@ pub fn process_initialize_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
     }
 
     // Increment oracle's open queue count
-    let oracle_data_mut = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+    let mut oracle_data_mut = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
     oracle_data_mut.open_queue = oracle_data_mut.open_queue.saturating_add(1);
 
     Ok(())

@@ -13,6 +13,7 @@ pub use solana_program::{
 };
 use solana_system_interface::instruction as system_instruction;
 pub use solana_system_interface::program as system_program;
+use std::cell::{Ref, RefMut};
 pub use thiserror::Error;
 
 pub trait Discriminator {
@@ -122,17 +123,17 @@ impl AccountInfoValidation for AccountInfo<'_> {
 }
 
 pub trait AsAccount {
-    fn as_account<T>(&self, program_id: &Pubkey) -> Result<&T, ProgramError>
+    fn as_account<T>(&self, program_id: &Pubkey) -> Result<Ref<'_, T>, ProgramError>
     where
         T: AccountDeserialize + Discriminator + Pod;
 
-    fn as_account_mut<T>(&self, program_id: &Pubkey) -> Result<&mut T, ProgramError>
+    fn as_account_mut<T>(&self, program_id: &Pubkey) -> Result<RefMut<'_, T>, ProgramError>
     where
         T: AccountDeserialize + Discriminator + Pod;
 }
 
 impl AsAccount for AccountInfo<'_> {
-    fn as_account<T>(&self, program_id: &Pubkey) -> Result<&T, ProgramError>
+    fn as_account<T>(&self, program_id: &Pubkey) -> Result<Ref<'_, T>, ProgramError>
     where
         T: AccountDeserialize + Discriminator + Pod,
     {
@@ -142,12 +143,11 @@ impl AsAccount for AccountInfo<'_> {
         if data.len() != expected_len {
             return Err(ProgramError::InvalidAccountData);
         }
-        let ptr = data.as_ptr();
-        drop(data);
-        unsafe { T::try_from_bytes(core::slice::from_raw_parts(ptr, expected_len)) }
+        T::try_from_bytes(&data)?;
+        Ok(Ref::map(data, |data| bytemuck::from_bytes(&data[8..])))
     }
 
-    fn as_account_mut<T>(&self, program_id: &Pubkey) -> Result<&mut T, ProgramError>
+    fn as_account_mut<T>(&self, program_id: &Pubkey) -> Result<RefMut<'_, T>, ProgramError>
     where
         T: AccountDeserialize + Discriminator + Pod,
     {
@@ -157,9 +157,10 @@ impl AsAccount for AccountInfo<'_> {
         if data.len() != expected_len {
             return Err(ProgramError::InvalidAccountData);
         }
-        let ptr = data.as_mut_ptr();
-        drop(data);
-        unsafe { T::try_from_bytes_mut(core::slice::from_raw_parts_mut(ptr, expected_len)) }
+        T::try_from_bytes_mut(&mut data)?;
+        Ok(RefMut::map(data, |data| {
+            bytemuck::from_bytes_mut(&mut data[8..])
+        }))
     }
 }
 

@@ -46,7 +46,10 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
         &ephemeral_vrf_api::ID,
     )?;
 
-    let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+    let oracle_vrf_pubkey = {
+        let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+        oracle_data.vrf_pubkey
+    };
 
     // Read queue header for index/seeds validation from full account data
     let queue_index = {
@@ -103,7 +106,7 @@ pub fn process_provide_randomness(accounts: &[AccountInfo<'_>], data: &[u8]) -> 
 
         // Verify proof
         let verified = verify_vrf(
-            &oracle_data.vrf_pubkey,
+            &oracle_vrf_pubkey,
             &args.input,
             output,
             (commitment_base_compressed, commitment_hash_compressed, s),
