@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  rust_version: stable
+  rust_version: 1.93.0
 
 jobs:
   install:
@@ -24,7 +24,9 @@ jobs:
 
       - name: Install Rust
         shell: "bash"
-        run: rustup toolchain install ${{ env.rust_version }} --profile minimal
+        run: |
+          rustup toolchain install ${{ env.rust_version }} --profile minimal
+          rustup default ${{ env.rust_version }}
 
   lint:
     needs: install
@@ -32,6 +34,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install Rust
+        shell: "bash"
+        run: |
+          rustup toolchain install ${{ env.rust_version }} --profile minimal
+          rustup default ${{ env.rust_version }}
+          rustup component add rustfmt clippy --toolchain ${{ env.rust_version }}
       - name: Run fmt
         run: cargo fmt -- --check
 
@@ -44,6 +52,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install Rust
+        shell: "bash"
+        run: |
+          rustup toolchain install ${{ env.rust_version }} --profile minimal
+          rustup default ${{ env.rust_version }}
 
       - name: run build
         run: |

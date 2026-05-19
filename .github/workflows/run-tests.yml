@@ -7,9 +7,9 @@ on:
   pull_request:
 
 env:
-  solana_version: v2.1.21
+  solana_version: v3.1.13
   anchor_version: 0.31.1
-  rust_version: stable
+  rust_version: 1.93.0
 
 jobs:
   setup:
@@ -29,7 +29,7 @@ jobs:
         shell: "bash"
         run: |
           rustup toolchain install ${{ env.rust_version }} --profile minimal
-          rustup update
+          rustup default ${{ env.rust_version }}
 
       - uses: actions/cache@v4
         name: cache solana cli
@@ -57,6 +57,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Rust
+        shell: "bash"
+        run: |
+          rustup toolchain install ${{ env.rust_version }} --profile minimal
+          rustup default ${{ env.rust_version }}
+          rustup component add rustfmt clippy --toolchain ${{ env.rust_version }}
       - name: Run fmt
         run: cargo fmt -- --check
       - name: Run clippy
@@ -68,6 +74,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Rust
+        shell: "bash"
+        run: |
+          rustup toolchain install ${{ env.rust_version }} --profile minimal
+          rustup default ${{ env.rust_version }}
 
       - uses: actions/cache@v4
         name: cache solana cli
@@ -87,6 +99,8 @@ jobs:
       - name: run build (all test-combinations)
         run: |
           export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
+          cargo --version
+          cargo build-sbf --version
           bash sdk/scripts/test-combinations.sh --no-color
           cargo build
           cd program && cargo build-sbf --features test-sbf
@@ -103,4 +117,6 @@ jobs:
       - name: run tests
         run: |
           export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
+          cargo --version
+          cargo test-sbf --version
           cargo test-sbf --features test-sbf
