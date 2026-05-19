@@ -68,17 +68,15 @@ jobs:
 
       - name: cargo publish
         run: |
-          DRY_RUN_FLAG=""
           if [ "${DRY_RUN}" = "true" ]; then
-            DRY_RUN_FLAG="--dry-run"
+            cargo publish --dry-run --manifest-path=sdk/vrf-macro/Cargo.toml --token $CRATES_TOKEN --no-verify
+            # Dry-run does not upload the macro crate, so patch crates.io to resolve
+            # the SDK's same-version macro dependency from the local workspace.
+            cargo publish --dry-run --manifest-path=sdk/Cargo.toml --token $CRATES_TOKEN --no-verify --config 'patch.crates-io.ephemeral-vrf-sdk-vrf-macro.path="sdk/vrf-macro"'
+          else
+            cargo publish --manifest-path=sdk/vrf-macro/Cargo.toml --token $CRATES_TOKEN
+            cargo publish --manifest-path=sdk/Cargo.toml --token $CRATES_TOKEN
           fi
-          
-          if [ "${DRY_RUN}" = "true" ]; then
-            NO_VERIFY_FLAG="--no-verify"
-          fi      
-
-          cargo publish $DRY_RUN_FLAG --manifest-path=sdk/vrf-macro/Cargo.toml --token $CRATES_TOKEN $NO_VERIFY_FLAG
-          cargo publish $DRY_RUN_FLAG --manifest-path=sdk/Cargo.toml --token $CRATES_TOKEN $NO_VERIFY_FLAG
         env:
           CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
           DRY_RUN: ${{ env.DRY_RUN }}
