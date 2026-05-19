@@ -18,6 +18,7 @@ anchor-modern = ["anchor-support", "anchor-lang-current"]
 anchor-compat = ["anchor-support", "backward-compat", "anchor-lang-compat"]
 anchor-support = []
 backward-compat = [
+  "ephemeral-vrf-sdk-vrf-macro/backward-compat",
   "borsh-compat",
   "solana-program-compat",
   "solana-pubkey-compat",

@@ -152,6 +152,7 @@ impl AsAccount for AccountInfo<'_> {
         T: AccountDeserialize + Discriminator + Pod,
     {
         self.has_owner(program_id)?;
+        self.is_writable()?;
         let mut data = self.try_borrow_mut_data()?;
         let expected_len = 8 + core::mem::size_of::<T>();
         if data.len() != expected_len {
