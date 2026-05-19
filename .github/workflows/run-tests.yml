@@ -113,7 +113,7 @@ jobs:
           cargo build-sbf --version
           cargo install --locked --version ${{ env.anchor_version }} anchor-cli
           anchor --version
-          npm install
+          yarn install --frozen-lockfile
           anchor test
 
       - name: run tests
