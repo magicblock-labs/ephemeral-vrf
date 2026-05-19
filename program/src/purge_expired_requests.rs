@@ -1,6 +1,5 @@
 use ephemeral_vrf_api::prelude::*;
 use solana_program::msg;
-use steel::*;
 
 /// Remove all requests in the queue whose age (current_slot - item.slot)
 /// exceeds the TTL.

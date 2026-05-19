@@ -4,15 +4,14 @@ use crate::fixtures::{TEST_AUTHORITY, TEST_CALLBACK_PROGRAM, TEST_ORACLE};
 use ephemeral_rollups_sdk::consts::DELEGATION_PROGRAM_ID;
 use ephemeral_vrf::vrf::{compute_vrf, generate_vrf_keypair, verify_vrf};
 use ephemeral_vrf_api::prelude::*;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
 use solana_program::rent::Rent;
 use solana_program::sysvar::slot_hashes;
 use solana_program_test::{processor, read_file, ProgramTest, ProgramTestContext};
 use solana_sdk::account::Account;
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::{pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
-use steel::*;
 
 async fn setup() -> ProgramTestContext {
     let mut program_test = ProgramTest::new(
@@ -23,7 +22,7 @@ async fn setup() -> ProgramTestContext {
 
     // Setup the test authority
     program_test.add_account(
-        Keypair::from_bytes(&TEST_AUTHORITY).unwrap().pubkey(),
+        Keypair::try_from(&TEST_AUTHORITY[..]).unwrap().pubkey(),
         Account {
             lamports: 1_000_000_000,
             data: vec![],
@@ -35,7 +34,7 @@ async fn setup() -> ProgramTestContext {
 
     // Setup the oracle
     program_test.add_account(
-        Keypair::from_bytes(&TEST_ORACLE).unwrap().pubkey(),
+        Keypair::try_from(&TEST_ORACLE[..]).unwrap().pubkey(),
         Account {
             lamports: 1_000_000_000,
             data: vec![],
@@ -52,7 +51,7 @@ async fn setup() -> ProgramTestContext {
         Account {
             lamports: Rent::default().minimum_balance(data.len()).max(1),
             data,
-            owner: solana_sdk::bpf_loader::id(),
+            owner: solana_sdk_ids::bpf_loader::id(),
             executable: true,
             rent_epoch: 0,
         },
@@ -65,7 +64,7 @@ async fn setup() -> ProgramTestContext {
         Account {
             lamports: Rent::default().minimum_balance(data.len()).max(1),
             data,
-            owner: solana_sdk::bpf_loader::id(),
+            owner: solana_sdk_ids::bpf_loader::id(),
             executable: true,
             rent_epoch: 0,
         },
@@ -81,8 +80,8 @@ async fn run_test() {
     let mut context = setup().await;
     let banks = context.banks_client.clone();
 
-    let authority_keypair = Keypair::from_bytes(&TEST_AUTHORITY).unwrap();
-    let oracle_keypair = Keypair::from_bytes(&TEST_ORACLE).unwrap();
+    let authority_keypair = Keypair::try_from(&TEST_AUTHORITY[..]).unwrap();
+    let oracle_keypair = Keypair::try_from(&TEST_ORACLE[..]).unwrap();
 
     // Submit initialize transaction.
     let ix = initialize(context.payer.pubkey());

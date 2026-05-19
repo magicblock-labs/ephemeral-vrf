@@ -1,4 +1,5 @@
 [toolchain]
+anchor_version = "0.31.1"
 package_manager = "yarn"
 
 [features]
@@ -21,6 +22,9 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test]
 startup_wait = 20000
+
+[test.validator]
+bind_address = "127.0.0.1"
 
 [[test.genesis]]
 address = "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"

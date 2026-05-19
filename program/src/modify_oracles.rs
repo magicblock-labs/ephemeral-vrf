@@ -5,7 +5,6 @@ use ephemeral_vrf_api::prelude::EphemeralVrfError::{
 use ephemeral_vrf_api::prelude::*;
 use ephemeral_vrf_api::verify::is_on_curve;
 use solana_program::msg;
-use steel::*;
 
 /// Process the modification of oracles (add or remove)
 ///
@@ -38,7 +37,7 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
 
     // Validate identity
     if args.identity == Pubkey::default()
-        || args.identity == solana_program::system_program::ID
+        || args.identity == system_program::ID
         || !is_on_curve(&args.identity)
     {
         return Err(InvalidOracleIdentity.into());
@@ -86,14 +85,17 @@ pub fn process_modify_oracles(accounts: &[AccountInfo<'_>], data: &[u8]) -> Prog
             &ephemeral_vrf_api::ID,
             &[ORACLE_DATA, args.identity.to_bytes().as_ref()],
         )?;
-        let oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+        let mut oracle_data = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
         oracle_data.vrf_pubkey = args.oracle_pubkey;
         oracle_data.registration_slot = Clock::get()?.slot;
     } else if args.operation == 1 {
         // Ensure oracle has no open queues before removal
-        let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
-        if oracle_data.open_queue != 0 {
-            msg!("Oracle has {} open queues", oracle_data.open_queue);
+        let open_queue = {
+            let oracle_data = oracle_data_info.as_account::<Oracle>(&ephemeral_vrf_api::ID)?;
+            oracle_data.open_queue
+        };
+        if open_queue != 0 {
+            msg!("Oracle has {} open queues", open_queue);
             return Err(QueueNotEmpty.into());
         }
         oracles.oracles.retain(|oracle| oracle.ne(&args.identity));

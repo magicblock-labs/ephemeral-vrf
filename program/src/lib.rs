@@ -23,7 +23,6 @@ use request_randomness::*;
 use undelegate_oracle_queue::*;
 
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 
 fn parse_instruction8<'a, T: std::convert::TryFrom<u8>>(
     api_id: &'a Pubkey,
@@ -75,4 +74,4 @@ pub fn process_instruction(
 
     Ok(())
 }
-entrypoint!(process_instruction);
+solana_program::entrypoint!(process_instruction);

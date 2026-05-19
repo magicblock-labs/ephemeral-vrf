@@ -16,11 +16,10 @@ use solana_account_decoder::UiAccountEncoding;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_filter::RpcFilterType;
+use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_curve25519::{ristretto::PodRistrettoPoint, scalar::PodScalar};
-use solana_sdk::{
-    commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signer,
-    transaction::Transaction,
-};
+use solana_sdk::{pubkey::Pubkey, signature::Signer, transaction::Transaction};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -370,12 +369,7 @@ impl ProcessableItem {
             }
         };
         let tx = Transaction::new_signed_with_payer(
-            &[
-                solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(
-                    budget,
-                ),
-                ix,
-            ],
+            &[ComputeBudgetInstruction::set_compute_unit_limit(budget), ix],
             Some(&oracle_client.keypair.pubkey()),
             &[&oracle_client.keypair],
             blockhash,
@@ -387,9 +381,7 @@ impl ProcessableItem {
                 &tx,
                 RpcSendTransactionConfig {
                     skip_preflight: oracle_client.skip_preflight,
-                    preflight_commitment: Some(
-                        solana_sdk::commitment_config::CommitmentLevel::Processed,
-                    ),
+                    preflight_commitment: Some(CommitmentLevel::Processed),
                     ..Default::default()
                 },
             )

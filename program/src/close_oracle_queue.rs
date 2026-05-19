@@ -1,5 +1,4 @@
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 
 /// Process the closing of an Oracle queue account
 ///
@@ -68,7 +67,7 @@ pub fn process_close_oracle_queue(accounts: &[AccountInfo], data: &[u8]) -> Prog
     }
 
     // Decrement oracle's open queue count
-    let oracle_data_mut = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
+    let mut oracle_data_mut = oracle_data_info.as_account_mut::<Oracle>(&ephemeral_vrf_api::ID)?;
     oracle_data_mut.open_queue = oracle_data_mut.open_queue.saturating_sub(1);
 
     close_account(oracle_queue_info, oracle_info)?;

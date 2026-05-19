@@ -19,5 +19,4 @@ idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
 anchor-lang = "0.31.1"
-ephemeral-vrf-sdk = { path = "../../../../../../sdk", features = ["anchor"]}
-
+ephemeral-vrf-sdk = { path = "../../../../../../sdk", features = ["anchor-compat"]}

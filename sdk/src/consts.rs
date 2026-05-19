@@ -1,5 +1,4 @@
-use solana_program::pubkey;
-use solana_program::pubkey::Pubkey;
+use crate::compat::{pubkey, Pubkey};
 
 /// Verifiable Random Function program id
 pub const VRF_PROGRAM_ID: Pubkey = pubkey!("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");

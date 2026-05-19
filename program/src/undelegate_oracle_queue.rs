@@ -1,6 +1,5 @@
 use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 
 /// Process the undelegation of an Oracle queue from the delegation program
 ///
@@ -49,6 +48,7 @@ pub fn process_undelegate_oracle_queue(accounts: &[AccountInfo<'_>], data: &[u8]
         vec![oracle_queue_info],
         magic_context,
         magic_program,
+        None,
     )?;
 
     Ok(())

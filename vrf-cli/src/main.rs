@@ -3,9 +3,9 @@ use clap::{Parser, Subcommand};
 use ephemeral_vrf::vrf::generate_vrf_keypair;
 use ephemeral_vrf_api::prelude::*;
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
     transaction::Transaction,

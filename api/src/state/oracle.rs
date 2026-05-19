@@ -1,6 +1,6 @@
 use crate::state::AccountDiscriminator;
+use crate::steel::{Discriminator, Pod, Zeroable};
 use solana_curve25519::ristretto::PodRistrettoPoint;
-use steel::{account, trace, Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
@@ -10,4 +10,14 @@ pub struct Oracle {
     pub open_queue: u64,
 }
 
-account!(AccountDiscriminator, Oracle);
+impl Oracle {
+    pub fn to_bytes(&self) -> &[u8] {
+        bytemuck::bytes_of(self)
+    }
+}
+
+impl Discriminator for Oracle {
+    fn discriminator() -> u8 {
+        AccountDiscriminator::Oracle.into()
+    }
+}

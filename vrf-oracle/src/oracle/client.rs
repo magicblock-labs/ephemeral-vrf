@@ -4,17 +4,20 @@ use solana_client::{
     pubsub_client::PubsubClient,
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
 };
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Keypair};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::{pubkey::Pubkey, signature::Keypair};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
 use helius_laserstream::{
     grpc::{
+        subscribe_request_filter_accounts_filter::Filter as AccountsFilterOneof,
+        subscribe_request_filter_accounts_filter_memcmp::Data as AccountsFilterMemcmpOneof,
         SubscribeRequest, SubscribeRequestFilterAccounts, SubscribeRequestFilterAccountsFilter,
         SubscribeRequestFilterAccountsFilterMemcmp,
     },
-    subscribe, AccountsFilterMemcmpOneof, AccountsFilterOneof, LaserstreamConfig,
+    subscribe, LaserstreamConfig,
 };
 
 use crate::blockhash_cache::BlockhashCache;
@@ -191,7 +194,7 @@ impl OracleClient {
                 },
             );
 
-            let stream = subscribe(
+            let (stream, _handle) = subscribe(
                 config,
                 SubscribeRequest {
                     accounts: filters,

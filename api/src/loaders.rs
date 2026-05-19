@@ -1,9 +1,10 @@
-use solana_program::account_info::AccountInfo;
-use solana_program::bpf_loader_upgradeable::UpgradeableLoaderState;
+use solana_loader_v3_interface::state::UpgradeableLoaderState;
+use solana_program::msg;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
-use solana_program::{bpf_loader_upgradeable, msg};
-use steel::trace;
+use solana_sdk_ids::bpf_loader_upgradeable;
+
+use crate::steel::{trace, AccountInfo};
 
 /// Get the program upgrade authority for a given program
 pub fn load_program_upgrade_authority(

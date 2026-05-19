@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::steel::*;
 use crate::ID;
 use ephemeral_rollups_sdk::consts::{DELEGATION_PROGRAM_ID, MAGIC_CONTEXT_ID, MAGIC_PROGRAM_ID};
 use ephemeral_rollups_sdk::pda::{
@@ -7,8 +8,7 @@ use ephemeral_rollups_sdk::pda::{
 };
 use solana_curve25519::ristretto::PodRistrettoPoint;
 use solana_curve25519::scalar::PodScalar;
-use solana_program::bpf_loader_upgradeable;
-use steel::*;
+use solana_sdk_ids::bpf_loader_upgradeable;
 
 pub fn initialize(signer: Pubkey) -> Instruction {
     Instruction {

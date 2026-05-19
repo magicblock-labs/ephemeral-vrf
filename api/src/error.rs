@@ -1,4 +1,4 @@
-use steel::*;
+use crate::steel::*;
 
 #[derive(Debug, Error, Clone, Copy, PartialEq, Eq, IntoPrimitive)]
 #[repr(u32)]
@@ -33,4 +33,8 @@ pub enum EphemeralVrfError {
     OracleMustProvideInDifferentSlot = 13,
 }
 
-error!(EphemeralVrfError);
+impl From<EphemeralVrfError> for ProgramError {
+    fn from(error: EphemeralVrfError) -> Self {
+        ProgramError::Custom(error as u32)
+    }
+}

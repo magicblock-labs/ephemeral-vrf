@@ -1,6 +1,5 @@
 use ephemeral_rollups_sdk::cpi::{delegate_account, DelegateAccounts, DelegateConfig};
 use ephemeral_vrf_api::prelude::*;
-use steel::*;
 
 /// Process the delegation of an Oracle queue to the delegation program
 ///

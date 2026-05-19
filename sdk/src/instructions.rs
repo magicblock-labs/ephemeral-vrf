@@ -1,5 +1,5 @@
+use crate::compat::{self, Compat, Modern, Pubkey};
 use crate::consts;
-use crate::solana::{system_program, Pubkey};
 use crate::types::{RequestRandomness, SerializableAccountMeta};
 
 /// Parameters for creating a request randomness instruction
@@ -14,23 +14,21 @@ pub struct RequestRandomnessParams {
     pub callback_args: Option<Vec<u8>>,
 }
 
-pub fn create_request_randomness_ix(
-    params: RequestRandomnessParams,
-) -> solana_program::instruction::Instruction {
-    solana_program::instruction::Instruction {
-        program_id: consts::VRF_PROGRAM_ID,
+pub fn create_request_randomness_ix(params: RequestRandomnessParams) -> compat::Instruction {
+    let payer = params.payer.modern();
+    let oracle_queue = params.oracle_queue.modern();
+    let callback_program_id = params.callback_program_id.modern();
+    let program_identity =
+        compat::latest::Pubkey::find_program_address(&[consts::IDENTITY], &callback_program_id).0;
+
+    compat::latest::Instruction {
+        program_id: consts::VRF_PROGRAM_ID.modern(),
         accounts: vec![
-            solana_program::instruction::AccountMeta::new(params.payer, true),
-            solana_program::instruction::AccountMeta::new_readonly(
-                Pubkey::find_program_address(&[consts::IDENTITY], &params.callback_program_id).0,
-                true,
-            ),
-            solana_program::instruction::AccountMeta::new(params.oracle_queue, false),
-            solana_program::instruction::AccountMeta::new_readonly(system_program::ID, false),
-            solana_program::instruction::AccountMeta::new_readonly(
-                solana_program::sysvar::slot_hashes::ID,
-                false,
-            ),
+            compat::latest::AccountMeta::new(payer, true),
+            compat::latest::AccountMeta::new_readonly(program_identity, true),
+            compat::latest::AccountMeta::new(oracle_queue, false),
+            compat::latest::AccountMeta::new_readonly(compat::latest::system_program::ID, false),
+            compat::latest::AccountMeta::new_readonly(compat::latest::slot_hashes::ID, false),
         ],
         data: RequestRandomness {
             caller_seed: params.caller_seed,
@@ -41,11 +39,12 @@ pub fn create_request_randomness_ix(
         }
         .to_bytes(),
     }
+    .compat()
 }
 
 pub fn create_request_regular_randomness_ix(
     params: RequestRandomnessParams,
-) -> solana_program::instruction::Instruction {
+) -> compat::Instruction {
     let mut ix = create_request_randomness_ix(params);
     ix.data[0] = 8;
     ix
