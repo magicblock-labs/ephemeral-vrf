@@ -108,7 +108,9 @@ jobs:
       - name: run integration tests
         working-directory: program/tests/integration/use-randomness
         run: |
-          export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+          export PATH="${{ needs.setup.outputs.solana_path }}:$PATH"
+          solana --version
+          cargo build-sbf --version
           cargo install --locked --version ${{ env.anchor_version }} anchor-cli
           anchor --version
           npm install
